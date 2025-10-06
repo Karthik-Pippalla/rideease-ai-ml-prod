@@ -1,8 +1,23 @@
-# RideEase - Telegram Ride Sharing Platform
+# RideEase - Intelligent Carpooling Assistant
 
-RideEase is a comprehensive ride-sharing platform built as a Telegram bot application, connecting riders and drivers through an intelligent matching system powered by AI and real-time notifications.
+RideEase is an intelligent ride-sharing system designed to optimize real-time driver–rider matching using AI and event-driven architecture. The system integrates Telegram bots, cloud functions, and machine learning to provide efficient and reliable ride connections while minimizing idle driver time and rider wait time.
 
-## 🚀 Features
+**Course**: COT6930 – ML & AI in Production  
+**Term**: Fall 2025  
+**Team Lead**: Karthik Abhiram Pippalla (FAU)
+
+## 🎯 Project Objectives
+
+- **Automate driver–rider matching** using real-time geolocation and bid scoring
+- **Provide dynamic driver availability** with configurable time and radius
+- **Ensure end-to-end CI/CD deployment**, monitoring, and MLOps tracking
+
+## 🚀 Key Features
+
+- **Dual Telegram bots**: RiderBot (ride requests) and DriverBot (availability, ride acceptance)
+- **Location-based ML matching** using MongoDB geospatial data
+- **Real-time event streaming** using Kafka/Pub/Sub
+- **Automated monitoring** and model version tracking via Grafana Cloud
 
 ### For Riders
 - **Easy Registration**: Quick onboarding through Telegram
@@ -27,12 +42,49 @@ RideEase is a comprehensive ride-sharing platform built as a Telegram bot applic
 
 ## 🏗️ Architecture
 
+### System Diagram
+```
+                      ┌──────────────────────────┐ 
+                      │        Telegram          │ 
+                      │ RiderBot / DriverBot UI │ 
+                      └────────────┬─────────────┘ 
+                                   │  Commands / Natural Input 
+                                   ▼ 
+                    ┌────────────────────────────────────────┐ 
+                    │     FastAPI Gateway / Firebase Funcs    │ 
+                    │ REST Endpoints + Model Inference Logic │ 
+                    └───────────────┬────────────────────────┘ 
+                                    │ Event Streaming 
+                   ┌────────────────┴────────────────┐ 
+                   ▼                                 ▼ 
+          ┌────────────────────┐            ┌────────────────────┐ 
+          │ MongoDB / Firestore│            │ Kafka / PubSub Bus │ 
+          │ Ride & Driver Data │            │ Event Consumers    │ 
+          └──────────┬─────────┘            └──────────┬─────────┘ 
+                     │                                │ 
+                     ▼                                ▼ 
+      ┌───────────────────────────────┐   ┌─────────────────────────────┐ 
+      │ ML Matching Engine (Python)   │   │ Monitoring (Prometheus)     │ 
+      │ Match scoring: route + bids   │   │ Metrics to Grafana Cloud    │ 
+      └───────────────────────────────┘   └─────────────────────────────┘ 
+```
+
+### Core Components
+1. **RiderBot & DriverBot** – Telegram interfaces for booking and accepting rides
+2. **FastAPI Service Layer** – REST endpoints + orchestration of ML logic
+3. **ML Matching Engine** – Scoring algorithm using location, distance, and bid
+4. **Kafka Event Stream** – Manages live ride/availability events
+5. **CI/CD Workflow** – GitHub Actions pipeline for build/test/deploy
+6. **Monitoring Layer** – Prometheus + Grafana dashboards
+
 ### Technology Stack
 - **Backend**: Node.js with Express.js
-- **Cloud Platform**: Firebase Functions (Serverless)
-- **Database**: MongoDB with Mongoose ODM
+- **Cloud Platform**: Firebase Functions (Serverless) / Cloud Run
+- **Database**: MongoDB Atlas with Mongoose ODM
 - **AI Integration**: OpenAI API for natural language processing
 - **Bot Framework**: Telegram Bot API
+- **Event Streaming**: Kafka/Pub/Sub
+- **Monitoring**: Grafana Cloud + Prometheus
 - **Geocoding**: Location services integration
 
 ### Project Structure
@@ -157,6 +209,31 @@ npm run deploy
 - `/rides` - View active and past rides
 - `/help` - Show available commands
 
+## 🤖 MLOps & Model Management
+
+### CI/CD Pipeline
+1. **Code Tests** → Run unit/integration tests
+2. **Build** → Docker container with pinned dependencies
+3. **Push** → Image pushed to GitHub Container Registry
+4. **Deploy** → Auto-deploy via Firebase or Cloud Run
+5. **Monitor** → Post-deployment status summary in Actions log
+
+### Model Versioning
+| Field | Description |
+|-------|-------------|
+| model_version | e.g., v0.1, v0.2 |
+| created_at | Model build timestamp |
+| accuracy | Match success rate (A/B test) |
+| latency_ms | Average inference time |
+| schema_version | JSON schema reference |
+| notes | Model update rationale |
+
+### Data Management
+- **Sources**: Synthetic rider/driver event data + test rides
+- **Storage**: `/snapshots/2025-10-01/` versioned data folders
+- **Schema Validation**: JSON schema enforcement pre-ingest
+- **Replay Support**: Simulate historical events for testing
+
 ## 🤖 AI Integration
 
 The platform uses OpenAI's GPT model for:
@@ -165,7 +242,17 @@ The platform uses OpenAI's GPT model for:
 - Contextual responses to user queries
 - Dynamic conversation flow management
 
-## 🔧 API Endpoints
+## � API Contract & SLOs
+
+| Endpoint | Method | Description | SLO (Latency / Availability) |
+|----------|--------|-------------|-------------------------------|
+| `/register` | POST | Register a driver/rider | <200ms / 99.9% |
+| `/ride/request` | POST | Rider posts ride request | <250ms / 99.5% |
+| `/ride/accept` | POST | Driver accepts a ride | <250ms / 99.5% |
+| `/ride/status/{id}` | GET | Get ride status | <150ms / 99.9% |
+| `/availability` | GET | Driver sets availability to accept rides | <100ms / 99.9% |
+
+## �🔧 API Endpoints
 
 ### Riders API
 - `GET /riders` - List all riders
@@ -198,13 +285,52 @@ The platform uses OpenAI's GPT model for:
 
 ## 📊 Monitoring and Logging
 
-- Comprehensive error logging
-- Performance monitoring
-- User activity tracking
-- Firebase Functions analytics
+- **Comprehensive error logging**
+- **Performance monitoring** via Prometheus
+- **User activity tracking**
+- **Firebase Functions analytics**
+- **Grafana Cloud dashboards** for ride latency, match rate, API health
+- **Real-time metrics** tracking
+
+## ⚠️ Risk Register & Mitigation
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Cloud credit exhaustion | Medium | High | Use free Firebase/Grafana tiers |
+| Schema drift | Medium | Medium | Weekly schema validation |
+| Secret/key exposure | Low | High | Store only in GitHub Secrets |
+| CI/CD failure | Medium | Medium | Retry + rollback scripts |
+| Latency spike | Medium | Medium | Cache frequent queries + optimize geocoding |
 
 ## 🤝 Contributing
 
+### Team Structure
+| Role | Primary | Backup |
+|------|---------|--------|
+| PM / Delivery Lead | Karthik Abhiram Pippalla | N/A |
+| ML Lead | Akanksha Midivelli  | N/A |
+| Data/Streaming Lead | shreya | N/A |
+| DevOps/Cloud Lead | Vasavi Makkena| N/A |
+
+### Communication & Cadence
+- **Channel**: Slack + Telegram Dev Group
+- **Response SLA**: Routine ≤ 24h; Urgent ≤ 4h
+- **Standup**: Fridays, 5 PM (15 min)
+- **Sprint Length**: 1 week; biweekly demo
+
+### Definition of Done (DoD)
+- Code merged via PR + review
+- Tests pass (≥70% coverage)
+- Docs updated
+- Secrets handled via GitHub Environments
+- Deployment successful
+
+### Decision Process & Accountability
+- **Normal decisions**: PM finalizes after review
+- **Hotfixes**: DevOps Lead initiates rollback
+- **Peer evaluation rubric** (1–5): delivery, communication, follow-through
+
+### How to Contribute
 1. Fork the repository
 2. Create a feature branch
 3. Commit your changes
@@ -219,15 +345,35 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 For support, please contact the development team or create an issue in the repository.
 
+**Repository**: [github.com/Karthik-Pippalla/rideease-ai-ml-prod](https://github.com/Karthik-Pippalla/rideease-ai-ml-prod)  
+**CI/CD**: GitHub Actions → Firebase Hosting / Cloud Run  
+**Monitoring**: Grafana Cloud (ride latency, match rate, API health)
+
+## 🗓️ Milestone Plan
+
+| Milestone | Focus | Due | Deliverables |
+|-----------|-------|-----|--------------|
+| M1 | Team Formation & Proposal | Oct 6 | Contract + Proposal PDF |
+| M2 | Kafka Wiring & Baseline Deploy | Oct 20 | Event streams + Deploy |
+| M3 | Evaluation & CI/CD | Nov 3 | Model registry + pipelines |
+| M4 | Monitoring & Retraining | Nov 12 | Grafana + retrain scripts |
+| M5 | Fairness, Security & Final Demo | Nov 24 | Recorded demo + report |
+
 ## 🚧 Roadmap
 
-- [ ] Real-time ride tracking
-- [ ] Payment integration
-- [ ] Driver rating system
-- [ ] Multi-language support
-- [ ] Advanced analytics dashboard
-- [ ] Mobile app development
+- [x] **Milestone 1**: Team Formation & Technical Proposal
+- [ ] **Real-time event streaming** with Kafka/Pub/Sub integration
+- [ ] **ML matching engine** with bid scoring algorithm
+- [ ] **Driver rating system**
+- [ ] **Multi-language support**
+- [ ] **Advanced analytics dashboard**
+- [ ] **Mobile app development**
+- [ ] **Fairness and security enhancements**
 
 ---
 
-Built with ❤️ using Node.js, Firebase, and Telegram Bot API
+**Prepared by**: Karthik Abhiram Pippalla (RideEase Team)  
+**Course**: COT6930 – ML & AI in Production, Fall 2025  
+**Date**: October 6, 2025  
+
+Built with ❤️ using Node.js, Firebase, Telegram Bot API, and ML/AI technologies
