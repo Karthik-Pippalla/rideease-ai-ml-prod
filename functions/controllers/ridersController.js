@@ -1,6 +1,7 @@
 const Rider = require("../models/rider");
 const Ride = require("../models/ride");
 const { getCoordsFromAddress } = require("../utils/geocode");
+const { publishRideRequestEvent, publishRideCancelledEvent } = require("../utils/kafkaEvents");
 
 function milesToMeters(mi) { return Number(mi) * 1609.34; }
 
@@ -35,6 +36,14 @@ async function requestRide(req, res) {
       notes: notes || undefined,
     });
 
+    // Publish Kafka event for ride request
+    try {
+      await publishRideRequestEvent(ride);
+    } catch (kafkaError) {
+      console.error('❌ Failed to publish ride request event:', kafkaError.message);
+      // Don't fail the request if Kafka fails
+    }
+
     return res.json({ ok: true, ride });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message });
@@ -52,6 +61,15 @@ async function deleteOpen(req, res) {
 
     const ride = await Ride.findOneAndDelete({ riderId: rider._id, status: "open" });
     if (!ride) return res.status(404).json({ ok: false, error: "No open ride found" });
+
+    // Publish Kafka event for ride cancellation
+    try {
+      await publishRideCancelledEvent(ride._id, 'rider', 'Rider deleted open ride request');
+    } catch (kafkaError) {
+      console.error('❌ Failed to publish ride cancelled event:', kafkaError.message);
+      // Don't fail the request if Kafka fails
+    }
+
     return res.json({ ok: true, deleted: ride._id });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message });

@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # Kafka and Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  # Recommendation API
+  recommender-api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - KAFKA_BROKERS=kafka:9092
+      - REDIS_URL=redis://redis:6379
+      - PORT=3000
+    depends_on:
+      - kafka
+      - redis
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  # Stream Ingestor
+  stream-ingestor:
+    build: .
+    command: node streamIngestor.js
+    environment:
+      - NODE_ENV=production
+      - KAFKA_BROKERS=kafka:9092
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - kafka
+      - redis
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  # Model Training Service
+  model-trainer:
+    build: .
+    command: node modelTrainer.js
+    environment:
+      - NODE_ENV=production
+      - KAFKA_BROKERS=kafka:9092
+    depends_on:
+      - kafka
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:

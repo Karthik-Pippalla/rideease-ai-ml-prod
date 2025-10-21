@@ -26,6 +26,10 @@ const { handleDatabaseOperation, logError } = require("./utils/errorHandler");
 const Driver = require("./models/driver");
 const Rider = require("./models/rider");
 
+// --- Kafka Integration ---
+const { initializeTopics, initKafka } = require("./utils/kafka");
+const { initializeConsumers } = require("./utils/kafkaConsumers");
+
 // ========== Mongo: single lazy connection ==========
 let mongoPromise = null;
 async function connectDb() {
@@ -60,6 +64,29 @@ async function connectDb() {
   return mongoPromise;
 }
 
+// ========== Kafka: initialization ==========
+let kafkaInitialized = false;
+async function initializeKafka() {
+  if (kafkaInitialized) return;
+  
+  try {
+    // Only initialize Kafka if KAFKA_BROKERS is configured
+    if (process.env.KAFKA_BROKERS) {
+      console.log("🚀 Initializing Kafka...");
+      await initKafka();
+      await initializeTopics();
+      await initializeConsumers();
+      kafkaInitialized = true;
+      console.log("✅ Kafka initialized successfully");
+    } else {
+      console.log("ℹ️ Kafka not configured (KAFKA_BROKERS not set)");
+    }
+  } catch (error) {
+    console.error("❌ Kafka initialization failed:", error.message);
+    // Don't throw - allow app to continue without Kafka
+  }
+}
+
 // ========== Express app ==========
 const app = express();
 app.use(cors({ origin: true }));
@@ -68,10 +95,11 @@ app.use(express.json({ limit: "10mb" }));
 // Health
 app.get("/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
-// REST API (ensure DB before hitting routers)
+// REST API (ensure DB and Kafka before hitting routers)
 app.use(async (_req, _res, next) => {
   try {
     await connectDb();
+    await initializeKafka();
     next();
   } catch (e) {
     next(e);

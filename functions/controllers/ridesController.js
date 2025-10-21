@@ -1,6 +1,11 @@
 const Ride = require("../models/ride");
 const Rider = require("../models/rider");
 const Driver = require("../models/driver");
+const { 
+  publishRideAcceptedEvent, 
+  publishRideCancelledEvent, 
+  publishRideCompletedEvent 
+} = require("../utils/kafkaEvents");
 
 // POST /rides/accept
 exports.acceptRide = async (req, res) => {
@@ -19,6 +24,14 @@ exports.acceptRide = async (req, res) => {
       { new: true }
     );
     if (!ride) return res.status(404).json({ ok: false, error: "Ride not available" });
+
+    // Publish Kafka event for ride acceptance
+    try {
+      await publishRideAcceptedEvent(rideId, driver._id, ride.riderId);
+    } catch (kafkaError) {
+      console.error('❌ Failed to publish ride accepted event:', kafkaError.message);
+      // Don't fail the request if Kafka fails
+    }
 
     return res.json({ ok: true, ride });
   } catch (e) {
@@ -39,6 +52,14 @@ exports.completeRide = async (req, res) => {
     );
     if (!ride) return res.status(404).json({ ok: false, error: "Ride not found or already finished" });
 
+    // Publish Kafka event for ride completion
+    try {
+      await publishRideCompletedEvent(rideId, ride.driverId, ride.riderId);
+    } catch (kafkaError) {
+      console.error('❌ Failed to publish ride completed event:', kafkaError.message);
+      // Don't fail the request if Kafka fails
+    }
+
     return res.json({ ok: true, ride });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message });
@@ -48,7 +69,7 @@ exports.completeRide = async (req, res) => {
 // POST /rides/cancel
 exports.cancelRide = async (req, res) => {
   try {
-    const { rideId } = req.body || {};
+    const { rideId, cancelledBy = 'system' } = req.body || {};
     if (!rideId) return res.status(400).json({ ok: false, error: "rideId is required" });
 
     const ride = await Ride.findOneAndUpdate(
@@ -57,6 +78,14 @@ exports.cancelRide = async (req, res) => {
       { new: true }
     );
     if (!ride) return res.status(404).json({ ok: false, error: "Ride not found or cannot be cancelled" });
+
+    // Publish Kafka event for ride cancellation
+    try {
+      await publishRideCancelledEvent(rideId, cancelledBy, 'Ride cancelled via API');
+    } catch (kafkaError) {
+      console.error('❌ Failed to publish ride cancelled event:', kafkaError.message);
+      // Don't fail the request if Kafka fails
+    }
 
     return res.json({ ok: true, ride });
   } catch (e) {

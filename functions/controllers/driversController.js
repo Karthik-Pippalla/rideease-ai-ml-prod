@@ -1,6 +1,7 @@
 const Driver = require("../models/driver");
 const Ride = require("../models/ride");
 const { getCoordsFromAddress } = require("../utils/geocode");
+const { publishDriverAvailableEvent, publishDriverUnavailableEvent } = require("../utils/kafkaEvents");
 
 function milesToMeters(mi) {
   return Number(mi) * 1609.34;
@@ -41,6 +42,14 @@ async function setAvailable(req, res) {
     driver.timeTillAvailable = endsAt; // when availability window ends
     await driver.save();
 
+    // Publish Kafka event for driver availability
+    try {
+      await publishDriverAvailableEvent(driver._id, point, radius);
+    } catch (kafkaError) {
+      console.error('❌ Failed to publish driver available event:', kafkaError.message);
+      // Don't fail the request if Kafka fails
+    }
+
     // find nearby open rides
     const rides = await Ride.find({
       status: "open",
@@ -77,6 +86,14 @@ async function availabilityOff(req, res) {
     driver.myRadiusOfAvailabilityMiles = 0;
     driver.timeTillAvailable = undefined;
     await driver.save();
+
+    // Publish Kafka event for driver unavailability
+    try {
+      await publishDriverUnavailableEvent(driver._id);
+    } catch (kafkaError) {
+      console.error('❌ Failed to publish driver unavailable event:', kafkaError.message);
+      // Don't fail the request if Kafka fails
+    }
 
     return res.json({ ok: true, driver, message: "Availability closed" });
   } catch (e) {
