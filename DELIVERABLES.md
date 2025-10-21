@@ -2,7 +2,7 @@
 
 **Team:** rideease  
 **Project:** Kafka-based Recommendation Engine  
-**Date:** January 2024
+**Date:** OCT 2025
 
 ---
 
