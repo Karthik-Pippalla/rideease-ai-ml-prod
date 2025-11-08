@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "RecommenderKPI",
+  "namespace": "rideease",
+  "fields": [
+    { "name": "window", "type": "string" },
+    { "name": "served", "type": "int" },
+    { "name": "engagementRate", "type": "double" },
+    { "name": "conversionRate", "type": "double" },
+    { "name": "timestamp", "type": "string" }
+  ]
+}

@@ -1,0 +1,7 @@
+extends: default
+env: prod
+recommender:
+  offline:
+    cutoffDays: 60
+    validationDays: 14
+    testDays: 14

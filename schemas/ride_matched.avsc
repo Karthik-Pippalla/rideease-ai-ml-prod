@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "RideMatched",
+  "namespace": "rideease",
+  "fields": [
+    { "name": "event_id", "type": "string" },
+    { "name": "correlation_id", "type": "string" },
+    { "name": "ride_id", "type": "string" },
+    { "name": "user_id", "type": "string" },
+    { "name": "driver_id", "type": "string" },
+    { "name": "timestamp", "type": "string" }
+  ]
+}

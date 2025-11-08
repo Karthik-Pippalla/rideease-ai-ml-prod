@@ -14,9 +14,15 @@ const ModelEvaluator = require('./modelEvaluator');
 
 class RecommendationSystemTester {
   constructor(config = {}) {
+    const sasl = (process.env.KAFKA_KEY && process.env.SECRET)
+      ? { mechanism: 'plain', username: process.env.KAFKA_KEY, password: process.env.SECRET }
+      : undefined;
+
     this.kafka = new Kafka({
       clientId: 'rideease-tester',
-      brokers: config.kafkaBrokers || process.env.KAFKA_BROKERS?.split(',') || ['localhost:9092']
+      brokers: config.kafkaBrokers || process.env.KAFKA_BROKERS?.split(',') || ['localhost:9092'],
+      ssl: !!sasl,
+      sasl
     });
     
     this.apiUrl = config.apiUrl || 'http://localhost:3000';

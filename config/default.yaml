@@ -1,0 +1,20 @@
+env: default
+kafka:
+  brokers: ["localhost:9092"]
+  metricsTopic: "rideease-recommender-kpis"
+recommender:
+  offline:
+    cutoffDays: 30
+    validationDays: 7
+    testDays: 7
+    k: 10
+  models:
+    popularity:
+      minPopularity: 0
+    itemItemCF:
+      minSimilarity: 0.1
+metrics:
+  windows: ["5m", "1h", "24h"]
+  successWindowMinutes: 15
+coverage:
+  diversityDistanceThresholdMiles: 5

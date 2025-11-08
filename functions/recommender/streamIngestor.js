@@ -11,9 +11,15 @@ const { Transform } = require('stream');
 
 class StreamIngestor {
   constructor(config = {}) {
+    const sasl = (process.env.KAFKA_KEY && process.env.SECRET)
+      ? { mechanism: 'plain', username: process.env.KAFKA_KEY, password: process.env.SECRET }
+      : undefined;
+
     this.kafka = new Kafka({
       clientId: 'rideease-ingestor',
-      brokers: config.kafkaBrokers || process.env.KAFKA_BROKERS?.split(',') || ['localhost:9092']
+      brokers: config.kafkaBrokers || process.env.KAFKA_BROKERS?.split(',') || ['localhost:9092'],
+      ssl: !!sasl,
+      sasl
     });
     
     this.consumer = this.kafka.consumer({ groupId: 'rideease-ingestor-group' });

@@ -1,0 +1,13 @@
+{
+  "type": "record",
+  "name": "RiderAction",
+  "namespace": "rideease",
+  "fields": [
+    { "name": "event_id", "type": "string" },
+    { "name": "correlation_id", "type": "string" },
+    { "name": "user_id", "type": "string" },
+    { "name": "action", "type": {"type": "enum", "name": "ActionType", "symbols": ["click", "request", "accept"] } },
+    { "name": "item_id", "type": "string" },
+    { "name": "timestamp", "type": "string" }
+  ]
+}

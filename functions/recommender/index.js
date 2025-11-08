@@ -40,6 +40,9 @@ class RecommendationSystem {
       // Initialize Kafka
       console.log('📡 Initializing Kafka...');
       await initKafka();
+      if (process.env.KAFKA_KEY && process.env.SECRET) {
+        console.log('🔐 Recommendation System using SASL/SSL secure Kafka connection');
+      }
       await initializeTopics();
       console.log('✅ Kafka initialized');
 

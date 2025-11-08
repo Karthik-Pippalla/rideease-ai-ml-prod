@@ -137,8 +137,16 @@ async function deleteWebhook(botToken, botName) {
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
-  const baseUrl = args[1];
-  
+  let baseUrl = args[1];
+
+  // Fallback to WEBHOOK_URL from env if not supplied
+  if (command === 'set' && !baseUrl) {
+    baseUrl = process.env.WEBHOOK_URL;
+    if (baseUrl) {
+      console.log(`ℹ️ Using WEBHOOK_URL from env: ${baseUrl}`);
+    }
+  }
+
   console.log('🚗 RideEase Telegram Bot Webhook Setup');
   console.log('=====================================');
   

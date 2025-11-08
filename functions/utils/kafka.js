@@ -1,9 +1,17 @@
 const { Kafka } = require('kafkajs');
+const { loadConfig } = require('../recommender/config');
+const { encodeMessage } = require('./avro');
 
-// Kafka configuration
+// Kafka configuration (now supports SASL/SSL when KAFKA_KEY & SECRET provided)
 const kafkaConfig = {
   clientId: 'rideease-app',
   brokers: process.env.KAFKA_BROKERS ? process.env.KAFKA_BROKERS.split(',') : ['localhost:9092'],
+  ssl: !!(process.env.KAFKA_KEY && process.env.SECRET),
+  sasl: (process.env.KAFKA_KEY && process.env.SECRET) ? {
+    mechanism: 'plain',
+    username: process.env.KAFKA_KEY,
+    password: process.env.SECRET
+  } : undefined,
   retry: {
     initialRetryTime: 100,
     retries: 8
@@ -11,6 +19,13 @@ const kafkaConfig = {
   connectionTimeout: 3000,
   requestTimeout: 25000,
 };
+
+// Log auth mode
+if (kafkaConfig.sasl) {
+  console.log('🔐 Kafka SASL/SSL enabled (plain mechanism)');
+} else {
+  console.log('ℹ️ Kafka running without SASL (local/dev mode)');
+}
 
 // Initialize Kafka client
 let kafka = null;
@@ -144,47 +159,55 @@ const EventSchemas = {
 async function publishEvent(eventType, data, topic = null) {
   try {
     const producerInstance = await getProducer();
-    
-    // Validate event schema
     const eventSchema = EventSchemas[eventType];
-    if (!eventSchema) {
-      throw new Error(`Unknown event type: ${eventType}`);
-    }
+    if (!eventSchema) throw new Error(`Unknown event type: ${eventType}`);
 
-    // Create event payload
     const event = {
       type: eventSchema.type,
-      data: {
-        ...data,
-        timestamp: new Date().toISOString(),
-        eventId: `${eventSchema.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      },
-      metadata: {
-        version: '1.0',
-        source: 'rideease-app',
-        timestamp: new Date().toISOString()
-      }
+      data: { ...data, timestamp: new Date().toISOString(), eventId: `${eventSchema.type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}` },
+      metadata: { version: '1.0', source: 'rideease-app', timestamp: new Date().toISOString() }
     };
 
-    // Determine topic name
     const topicName = topic || `rideease-${eventSchema.type}`;
-    
-    // Publish to Kafka
-    await producerInstance.send({
-      topic: topicName,
-      messages: [{
-        key: event.data.eventId,
-        value: JSON.stringify(event),
-        partition: 0 // Simple partitioning for now
-      }]
-    });
 
+    // For now, still JSON for legacy topics
+    await producerInstance.send({ topic: topicName, messages: [{ key: event.data.eventId, value: JSON.stringify(event) }] });
     console.log(`✅ Published event ${eventType} to topic ${topicName}:`, event.data.eventId);
     return { success: true, eventId: event.data.eventId };
-  } catch (error) {
-    console.error(`❌ Failed to publish event ${eventType}:`, error.message);
-    throw error;
-  }
+  } catch (error) { console.error(`❌ Failed to publish event ${eventType}:`, error.message); throw error; }
+}
+
+async function publishRecommendationServedAvro(payload) {
+  const producerInstance = await getProducer();
+  const topic = 'rideease-recommendation_served';
+  const subject = `${topic}-value`;
+  const value = await encodeMessage(subject, payload, 'recommendation_served.avsc');
+  await producerInstance.send({ topic, messages: [{ value }] });
+}
+
+async function publishRiderActionAvro(payload) {
+  const producerInstance = await getProducer();
+  const topic = 'rideease-rider_action';
+  const subject = `${topic}-value`;
+  const value = await encodeMessage(subject, payload, 'rider_action.avsc');
+  await producerInstance.send({ topic, messages: [{ value }] });
+}
+
+async function publishRideMatchedAvro(payload) {
+  const producerInstance = await getProducer();
+  const topic = 'rideease-ride_matched';
+  const subject = `${topic}-value`;
+  const value = await encodeMessage(subject, payload, 'ride_matched.avsc');
+  await producerInstance.send({ topic, messages: [{ value }] });
+}
+
+async function publishKPI(metrics) {
+  const cfg = loadConfig();
+  const topic = cfg.kafka?.metricsTopic || 'rideease-recommender-kpis';
+  const producerInstance = await getProducer();
+  const subject = `${topic}-value`;
+  const value = await encodeMessage(subject, metrics, 'recommender_kpi.avsc');
+  await producerInstance.send({ topic, messages: [{ value }] });
 }
 
 /**
@@ -252,6 +275,8 @@ async function createTopic(topicName, partitions = 3, replicationFactor = 1) {
  * Initialize all required topics
  */
 async function initializeTopics() {
+  const cfg = loadConfig();
+  const metricsTopic = cfg.kafka?.metricsTopic || 'rideease-recommender-kpis';
   const topics = [
     // Existing RideEase topics
     'rideease-ride-requested',
@@ -262,12 +287,14 @@ async function initializeTopics() {
     'rideease-driver-available',
     'rideease-driver-unavailable',
     'rideease-notification-sent',
-    
+
     // Recommendation system topics
-    'rideease.watch',
-    'rideease.rate',
-    'rideease.reco_requests',
-    'rideease.reco_responses'
+    'rideease-recommendation_served',
+    'rideease-rider_action',
+    'rideease-ride_matched',
+
+    // Metrics
+    metricsTopic
   ];
 
   for (const topic of topics) {
@@ -323,5 +350,9 @@ module.exports = {
   EventSchemas,
   rideEvents,
   driverEvents,
-  notificationEvents
+  notificationEvents,
+  publishKPI,
+  publishRecommendationServedAvro,
+  publishRiderActionAvro,
+  publishRideMatchedAvro
 };
