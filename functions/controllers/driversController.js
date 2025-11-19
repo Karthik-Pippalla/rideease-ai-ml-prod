@@ -1,7 +1,9 @@
 const Driver = require("../models/driver");
 const Ride = require("../models/ride");
 const { getCoordsFromAddress } = require("../utils/geocode");
-const { publishDriverAvailableEvent, publishDriverUnavailableEvent } = require("../utils/kafkaEvents");
+
+// Import security middleware from ridesController  
+const { requireApiKey } = require("./ridesController");
 
 function milesToMeters(mi) {
   return Number(mi) * 1609.34;
@@ -12,7 +14,47 @@ function ensureNumber(n, def = 0) {
   return Number.isFinite(v) ? v : def;
 }
 
-// POST /driver/available
+// Authentication middleware specific to driver operations
+function requireDriverAuth(req, res, next) {
+  const requestingTelegramId = req.headers['x-telegram-id'] || req.headers['telegram-id'];
+  const targetTelegramId = req.body?.telegramId || req.params?.telegramId;
+  
+  // Check for API key (internal system access)
+  const apiKey = req.headers['x-api-key'];
+  const hasValidApiKey = apiKey && apiKey === process.env.INTERNAL_API_KEY;
+  
+  if (hasValidApiKey) {
+    return next(); // Allow internal system calls
+  }
+  
+  if (!requestingTelegramId) {
+    return res.status(401).json({ 
+      ok: false, 
+      error: "Authentication required - missing telegram ID header" 
+    });
+  }
+  
+  if (requestingTelegramId !== targetTelegramId) {
+    // Log security violation
+    console.warn('[SECURITY] Unauthorized driver operation attempt:', {
+      timestamp: new Date().toISOString(),
+      requestingId: requestingTelegramId,
+      targetId: targetTelegramId,
+      endpoint: req.originalUrl,
+      method: req.method,
+      ip: req.ip || req.connection?.remoteAddress
+    });
+    
+    return res.status(403).json({ 
+      ok: false, 
+      error: "Access denied - can only perform actions on your own account" 
+    });
+  }
+  
+  next();
+}
+
+// POST /driver/available - Secured with authentication
 async function setAvailable(req, res) {
   try {
     const {
@@ -21,6 +63,19 @@ async function setAvailable(req, res) {
       radiusMiles,
       hours = 1,
     } = req.body || {};
+
+    const requestingTelegramId = req.headers['x-telegram-id'] || req.headers['telegram-id'];
+    
+    // Verify authentication (unless internal API call)
+    const apiKey = req.headers['x-api-key'];
+    const hasValidApiKey = apiKey && apiKey === process.env.INTERNAL_API_KEY;
+    
+    if (!hasValidApiKey && (!requestingTelegramId || requestingTelegramId !== telegramId)) {
+      return res.status(403).json({ 
+        ok: false, 
+        error: "Access denied - can only set availability for your own account" 
+      });
+    }
 
     if (!telegramId) return res.status(400).json({ ok: false, error: "telegramId is required" });
     if (!address) return res.status(400).json({ ok: false, error: "address is required" });
@@ -41,14 +96,6 @@ async function setAvailable(req, res) {
     driver.myRadiusOfAvailabilityMiles = radius;
     driver.timeTillAvailable = endsAt; // when availability window ends
     await driver.save();
-
-    // Publish Kafka event for driver availability
-    try {
-      await publishDriverAvailableEvent(driver._id, point, radius);
-    } catch (kafkaError) {
-      console.error('❌ Failed to publish driver available event:', kafkaError.message);
-      // Don't fail the request if Kafka fails
-    }
 
     // find nearby open rides
     const rides = await Ride.find({
@@ -71,10 +118,23 @@ async function setAvailable(req, res) {
   }
 }
 
-// POST /driver/availability_off
+// POST /driver/availability_off - Secured with authentication
 async function availabilityOff(req, res) {
   try {
     const { telegramId } = req.body || {};
+    const requestingTelegramId = req.headers['x-telegram-id'] || req.headers['telegram-id'];
+    
+    // Verify authentication (unless internal API call)
+    const apiKey = req.headers['x-api-key'];
+    const hasValidApiKey = apiKey && apiKey === process.env.INTERNAL_API_KEY;
+    
+    if (!hasValidApiKey && (!requestingTelegramId || requestingTelegramId !== telegramId)) {
+      return res.status(403).json({ 
+        ok: false, 
+        error: "Access denied - can only turn off availability for your own account" 
+      });
+    }
+    
     if (!telegramId) return res.status(400).json({ ok: false, error: "telegramId is required" });
 
     const driver = await Driver.findOne({ telegramId: String(telegramId) });
@@ -87,28 +147,49 @@ async function availabilityOff(req, res) {
     driver.timeTillAvailable = undefined;
     await driver.save();
 
-    // Publish Kafka event for driver unavailability
-    try {
-      await publishDriverUnavailableEvent(driver._id);
-    } catch (kafkaError) {
-      console.error('❌ Failed to publish driver unavailable event:', kafkaError.message);
-      // Don't fail the request if Kafka fails
-    }
-
     return res.json({ ok: true, driver, message: "Availability closed" });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
 
-// GET /driver/nearby-rides/:telegramId
+// GET /driver/nearby-rides/:telegramId - Secured with authentication  
 async function nearby(req, res) {
   try {
     const telegramId = String(req.params.telegramId);
+    const requestingTelegramId = req.headers['x-telegram-id'] || req.headers['telegram-id'];
+    
+    // Check for API key (internal system access) OR user authentication
+    const apiKey = req.headers['x-api-key'];
+    const hasValidApiKey = apiKey && apiKey === process.env.INTERNAL_API_KEY;
+    const isOwnData = requestingTelegramId && requestingTelegramId === telegramId;
+    
+    if (!hasValidApiKey && !isOwnData) {
+      // Log security violation
+      console.warn('[SECURITY] Unauthorized access attempt to driver nearby rides:', {
+        timestamp: new Date().toISOString(),
+        requestingId: requestingTelegramId || 'none',
+        targetId: telegramId,
+        endpoint: 'nearby',
+        ip: req.ip || req.connection?.remoteAddress
+      });
+      
+      return res.status(403).json({ 
+        ok: false, 
+        error: "Access denied - can only view your own nearby rides" 
+      });
+    }
+    
     const driver = await Driver.findOne({ telegramId });
     if (!driver) return res.status(404).json({ ok: false, error: "Driver not found" });
     if (!driver.availability || !driver.availableLocation) {
       return res.status(400).json({ ok: false, error: "Driver is not currently available" });
+    }
+
+    // Check if driver's availability has expired
+    const now = new Date();
+    if (driver.timeTillAvailable && now > new Date(driver.timeTillAvailable)) {
+      return res.status(400).json({ ok: false, error: "Driver availability has expired" });
     }
 
     const radius = ensureNumber(driver.myRadiusOfAvailabilityMiles, 10);
@@ -131,10 +212,33 @@ async function nearby(req, res) {
   }
 }
 
-// GET /driver/stats/:telegramId
+// GET /driver/stats/:telegramId - Secured with authentication
 async function stats(req, res) {
   try {
     const telegramId = String(req.params.telegramId);
+    const requestingTelegramId = req.headers['x-telegram-id'] || req.headers['telegram-id'];
+    
+    // Check for API key (internal system access) OR user authentication
+    const apiKey = req.headers['x-api-key'];
+    const hasValidApiKey = apiKey && apiKey === process.env.INTERNAL_API_KEY;
+    const isOwnData = requestingTelegramId && requestingTelegramId === telegramId;
+    
+    if (!hasValidApiKey && !isOwnData) {
+      // Log security violation
+      console.warn('[SECURITY] Unauthorized access attempt to driver stats:', {
+        timestamp: new Date().toISOString(),
+        requestingId: requestingTelegramId || 'none',
+        targetId: telegramId,
+        endpoint: 'stats',
+        ip: req.ip || req.connection?.remoteAddress
+      });
+      
+      return res.status(403).json({ 
+        ok: false, 
+        error: "Access denied - can only view your own statistics" 
+      });
+    }
+    
     const driver = await Driver.findOne({ telegramId });
     if (!driver) return res.status(404).json({ ok: false, error: "Driver not found" });
 
@@ -161,4 +265,4 @@ async function stats(req, res) {
   }
 }
 
-module.exports = { setAvailable, availabilityOff, nearby, stats };
+module.exports = { setAvailable, availabilityOff, nearby, stats, requireDriverAuth };

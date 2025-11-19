@@ -1,9 +1,48 @@
 // utils/notifications.js
-// Centralized Telegram notification helpers. Designed to work with separate driver and rider bots.
+// Centralized Telegram notification system
+
+// Designed to work with separate driver and rider bots.
+const { formatDateTime } = require('./dateParser');
 
 let driverBot = null;
 let riderBot = null;
 let legacyBot = null; // For backwards compatibility
+
+// Function to set legacy bot instance (for backwards compatibility)
+function setBotInstance(bot) {
+  legacyBot = bot;
+}
+
+// Function to set driver bot instance
+function setDriverBotInstance(bot) {
+  driverBot = bot;
+}
+
+// Function to set rider bot instance  
+function setRiderBotInstance(bot) {
+  riderBot = bot;
+}
+
+async function notifyDriverRideAccepted(driver, ride, rider, buttons = null) {
+  const message = `✅ **Ride Accepted!**\n\n` +
+    `📍 **Pickup:** ${ride.pickupLocationName || ride.pickup?.name}\n` +
+    `📍 **Drop:** ${ride.dropLocationName || ride.dropoff?.name}\n` +
+    `🕐 **Time:** ${ride.rideTime ? formatDateTime(new Date(ride.rideTime)) : (ride.timeOfRide ? formatDateTime(new Date(ride.timeOfRide)) : 'ASAP')}\n` +
+    `💰 **Bid:** $${ride.bid || 0}\n\n` +
+    `👤 **Rider Contact:** @${rider?.telegramUsername || rider?.username || "(no username)"}\n` +
+    `📞 **Phone:** ${rider?.phoneNumber || "Contact via Telegram"}\n\n` +
+    `⚠️ **Important Notice:**\n` +
+    `• You cannot go /available until this ride is completed or canceled\n` +
+    `• **MUST** use /completed button after ride is finished\n` +
+    `• **MUST** use /canceled button if ride gets cancelled\n` +
+    `• Failure to mark completion will result in automatic cancellation\n\n` +
+    `📝 **Instructions:**\n` +
+    `• Contact rider for coordination\n` +
+    `• Use /completed or /canceled when appropriate`;
+  
+  const options = { parse_mode: "Markdown", ...(buttons || {}) };
+  return await notifyDriver(driver, message, options);
+}
 
 function setBotInstance(b) {
   // Legacy support
@@ -56,34 +95,81 @@ function notifyRider(rider, text, opts = {}) {
   return sendTelegramMessage(rider, text, opts, bot);
 }
 
+// Notify driver when they accept a ride
+async function notifyDriverRideAccepted(driver, ride, rider) {
+  const message = `✅ **Ride Accepted!**\n\n` +
+    `📍 **Pickup:** ${ride.pickupLocationName || ride.pickup?.name}\n` +
+    `📍 **Drop:** ${ride.dropLocationName || ride.dropoff?.name}\n` +
+    `� **Time:** ${ride.rideTime ? formatDateTime(new Date(ride.rideTime)) : (ride.timeOfRide ? formatDateTime(new Date(ride.timeOfRide)) : 'ASAP')}\n` +
+    `💰 **Bid:** $${ride.bid || 0}\n\n` +
+    `👤 **Rider Contact:** @${rider?.telegramUsername || rider?.username || "(no username)"}\n` +
+    `📞 **Phone:** ${rider?.phoneNumber || "Contact via Telegram"}\n\n` +
+    `📝 **Instructions:**\n` +
+    `• After ride completed, use /completed command\n` +
+    `• If ride gets cancelled, use /canceled command`;
+  
+  return await notifyDriver(driver, message, { parse_mode: "Markdown" });
+}
+
+// Notify rider when their ride is accepted by a driver
+async function notifyRiderDriverAccepted(rider, ride, driver) {
+  const message = `✅ **Great News! Your Ride Has Been Accepted!**\n\n` +
+    `🚗 **Driver:** ${driver?.name || "Driver"}\n` +
+    `⭐ **Rating:** ${driver?.rating ? `${driver.rating}/5` : "New driver"}\n` +
+    `📞 **Contact:** @${driver?.telegramUsername || driver?.username || "(no username)"}\n` +
+    `📱 **Phone:** ${driver?.phoneNumber || "Contact via Telegram"}\n\n` +
+    `📍 **Pickup:** ${ride.pickupLocationName || ride.pickup?.name}\n` +
+    `📍 **Drop:** ${ride.dropLocationName || ride.dropoff?.name}\n` +
+    `🕐 **Time:** ${ride.rideTime ? formatDateTime(new Date(ride.rideTime)) : (ride.timeOfRide ? formatDateTime(new Date(ride.timeOfRide)) : 'ASAP')}\n` +
+    `💰 **Amount:** $${ride.bid || 0}\n\n` +
+    `🚀 **Your driver will contact you shortly for pickup!**`;
+  
+  return await notifyRider(rider, message, { parse_mode: "Markdown" });
+}
+
+// Helper function to create ride completion buttons
+function getRideCompletionButtons() {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "✅ Mark Completed", callback_data: "mark_completed" },
+          { text: "📋 View Ride Details", callback_data: "view_ride_details" }
+        ],
+        [
+          { text: "🏠 Main Menu", callback_data: "main_menu" }
+        ]
+      ],
+    },
+  };
+}
+
 // Template messages for common notifications
 const templates = {
-  rideMatched: (ride, driverInfo) => ({
-    rider: `🚗 **Driver Found!**\n\nYour ride has been accepted!\n\n📍 **Pickup:** ${ride.pickupLocationName}\n📍 **Drop:** ${ride.dropLocationName}\n🕐 **Time:** ${new Date(ride.timeOfRide).toLocaleString()}\n\n👤 **Driver Contact:** @${driverInfo.telegramUsername || driverInfo.username || "(no username)"}\n📞 **Phone:** ${driverInfo.phoneNumber || "Contact via Telegram"}`,
-    driver: `✅ **Ride Accepted!**\n\nRide details:\n\n📍 **Pickup:** ${ride.pickupLocationName}\n📍 **Drop:** ${ride.dropLocationName}\n🕐 **Time:** ${new Date(ride.timeOfRide).toLocaleString()}\n💰 **Bid:** $${ride.bid || 0}\n\n👤 **Rider Contact:** @${ride.riderInfo?.telegramUsername || ride.riderInfo?.username || "(no username)"}\n📞 **Phone:** ${ride.riderInfo?.phoneNumber || "Contact via Telegram"}`
-  }),
-  
   newRideRequest: (ride, distance) => 
-    `🚗 **New Ride Request**\n\nNear you (~${distance?.toFixed?.(1) || "?"} miles):\n\n📍 **Pickup:** ${ride.pickupLocationName}\n📍 **Drop:** ${ride.dropLocationName}\n🕐 **Time:** ${new Date(ride.timeOfRide).toLocaleString()}${ride.bid ? `\n💰 **Bid:** $${ride.bid}` : ""}\n\nUse /available to start accepting rides!`,
+    `🚗 **Driver: New Ride Request Available**\n\n` +
+    `📍 Near you (~${distance?.toFixed?.(1) || "?"} miles):\n\n` +
+    `• Pickup: ${ride.pickupLocationName}\n` +
+    `• Drop-off: ${ride.dropLocationName}\n` +
+    `• Time: ${new Date(ride.timeOfRide).toLocaleString()}${ride.bid ? `\n• Payment: $${ride.bid}` : ""}\n\n` +
+    `🚗 **As a DRIVER:** Use /available to start accepting rides!\n\n` +
+    `⏱️ *Response time: 3-45 seconds due to AI processing*`,
   
   rideCancelled: (ride) =>
-    `❌ **Ride Cancelled**\n\n📍 ${ride.pickupLocationName} → ${ride.dropLocationName}\n🕐 ${new Date(ride.timeOfRide).toLocaleString()}\n\nThe ride has been cancelled.`,
+    `❌ **Ride Cancelled**\n\n` +
+    `📍 ${ride.pickupLocationName} → ${ride.dropLocationName}\n` +
+    `🕐 ${new Date(ride.timeOfRide).toLocaleString()}\n\n` +
+    `The ride has been cancelled. You can now request/accept new rides.\n\n` +
+    `⏱️ *Response time: 3-45 seconds due to AI processing*`,
     
   rideCompleted: (ride) =>
-    `✅ **Ride Completed**\n\n📍 ${ride.pickupLocationName} → ${ride.dropLocationName}\n🕐 ${new Date(ride.timeOfRide).toLocaleString()}\n💰 ${ride.bid ? `$${ride.bid}` : "No bid"}\n\nThanks for using RideEase!`
+    `✅ **Ride Completed Successfully**\n\n` +
+    `📍 ${ride.pickupLocationName} → ${ride.dropLocationName}\n` +
+    `🕐 ${new Date(ride.timeOfRide).toLocaleString()}\n` +
+    `💰 ${ride.bid ? `$${ride.bid}` : "No payment amount"}\n\n` +
+    `Thank you for using RideEase! You can now request/accept new rides.\n\n` +
+    `⏱️ *Response time: 3-45 seconds due to AI processing*`
 };
-
-async function notifyRideMatched(ride, driver, rider) {
-  const driverMsg = templates.rideMatched(ride, driver).driver;
-  const riderMsg = templates.rideMatched(ride, driver).rider;
-  
-  const results = await Promise.all([
-    notifyDriver(driver, driverMsg, { parse_mode: "Markdown" }),
-    notifyRider(rider, riderMsg, { parse_mode: "Markdown" })
-  ]);
-  
-  return { driver: results[0], rider: results[1] };
-}
 
 async function notifyNewRideRequest(drivers, ride) {
   const message = templates.newRideRequest(ride);
@@ -133,16 +219,65 @@ async function notifyRideCompleted(ride, driver, rider) {
   return { driver: results[0], rider: results[1] };
 }
 
+// New function to send ride time reminders about restrictions and auto-cancellation
+async function notifyRideTimeRestrictions(driver, rider, ride) {
+  const reminderMessage = `🕐 **Ride Time Reminder**\n\n` +
+    `📍 **Route:** ${ride.pickupLocationName} → ${ride.dropLocationName}\n` +
+    `💰 **Amount:** $${ride.bid}\n\n` +
+    `⚠️ **Important Reminders:**\n` +
+    `• Driver: Cannot go /available until ride completed or canceled\n` +
+    `• Rider: Cannot request new rides until this one is finished\n` +
+    `• **MUST** use /completed or /canceled buttons when appropriate\n\n` +
+    `🤖 **Auto-Cancellation Warning:**\n` +
+    `If no action is taken (completed/canceled), this ride will be **automatically canceled by our system** after 24 hours to prevent indefinite blocking.\n\n` +
+    `Please coordinate and complete your ride properly!`;
+
+  const results = [];
+  
+  // Notify driver
+  try {
+    const driverResult = await notifyDriver(driver, reminderMessage, { parse_mode: "Markdown" });
+    results.push({ type: 'driver', result: driverResult });
+  } catch (err) {
+    console.error("Failed to send ride time reminder to driver:", err);
+    results.push({ type: 'driver', error: err.message });
+  }
+  
+  // Notify rider  
+  try {
+    const riderResult = await notifyRider(rider, reminderMessage, { parse_mode: "Markdown" });
+    results.push({ type: 'rider', result: riderResult });
+  } catch (err) {
+    console.error("Failed to send ride time reminder to rider:", err);
+    results.push({ type: 'rider', error: err.message });
+  }
+  
+  return results;
+}
+
+function getRiderBotInstance() {
+  return riderBot || legacyBot;
+}
+
+function getDriverBotInstance() {
+  return driverBot || legacyBot;
+}
+
 module.exports = {
   setBotInstance,
   setDriverBotInstance,
   setRiderBotInstance,
+  getRiderBotInstance,
+  getDriverBotInstance,
   sendTelegramMessage,
   notifyDriver,
   notifyRider,
-  notifyRideMatched,
+  notifyDriverRideAccepted,
+  notifyRiderDriverAccepted,
   notifyNewRideRequest,
   notifyRideCancelled,
   notifyRideCompleted,
+  notifyRideTimeRestrictions,
   templates,
+  getRideCompletionButtons
 };

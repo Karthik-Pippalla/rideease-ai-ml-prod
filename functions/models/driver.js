@@ -25,12 +25,12 @@ const DriverSchema = new mongoose.Schema(
     telegramUsername: { type: String, required: true, trim: true, index: true },
 
     // Vehicle / docs
-    rideArea: { type: String, required: true, trim: true },
     licensePlateNumber: { type: String, required: true, trim: true },
     vehicleColour: { type: String, required: true, trim: true },
 
     // Availability (driver can toggle; availability lifecycles elsewhere)
     availability: { type: Boolean, default: false },
+    availabilityStartedAt: { type: Date }, // When driver set availability to true
 
     // When available=true, these may be set
     availableLocationName: { type: String, trim: true },
@@ -46,16 +46,13 @@ const DriverSchema = new mongoose.Schema(
     myRadiusOfAvailabilityMiles: { type: Number, min: 0, default: 0 },
     timeTillAvailable: { type: Date }, // e.g., endsAt or next-available cutoff
 
-    // History
-    pastRidesIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Ride" }],
-
     // Reputation
     rating: { type: Number, min: 0, max: 5, default: 0 },
   },
   { timestamps: true }
 );
 
-// Geo index (2dsphere) for availableLocation - sparse index only indexes documents that have this field
+// Geo indexes (2dsphere) - sparse indexes only index documents that have these fields
 DriverSchema.index({ availableLocation: "2dsphere" }, { sparse: true });
 
 module.exports =

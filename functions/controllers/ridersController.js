@@ -1,14 +1,27 @@
 const Rider = require("../models/rider");
 const Ride = require("../models/ride");
 const { getCoordsFromAddress } = require("../utils/geocode");
-const { publishRideRequestEvent, publishRideCancelledEvent } = require("../utils/kafkaEvents");
+const { parseDateTime, isValidFutureTime } = require("../utils/dateParser");
 
 function milesToMeters(mi) { return Number(mi) * 1609.34; }
 
-// POST /rider/request
+// POST /rider/request - Secured with authentication
 async function requestRide(req, res) {
   try {
     const { telegramId, pickup, dropoff, bid = 0, rideTime, notes } = req.body || {};
+    const requestingTelegramId = req.headers['x-telegram-id'] || req.headers['telegram-id'];
+    
+    // Verify authentication (unless internal API call)
+    const apiKey = req.headers['x-api-key'];
+    const hasValidApiKey = apiKey && apiKey === process.env.INTERNAL_API_KEY;
+    
+    if (!hasValidApiKey && (!requestingTelegramId || requestingTelegramId !== telegramId)) {
+      return res.status(403).json({ 
+        ok: false, 
+        error: "Access denied - can only request rides for your own account" 
+      });
+    }
+    
     if (!telegramId) return res.status(400).json({ ok: false, error: "telegramId is required" });
     if (!pickup || !dropoff) return res.status(400).json({ ok: false, error: "pickup and dropoff are required" });
 
@@ -18,10 +31,16 @@ async function requestRide(req, res) {
     const p = await getCoordsFromAddress(pickup);
     const d = await getCoordsFromAddress(dropoff);
 
-    const when = rideTime ? new Date(rideTime) : null;
-    if (!when || isNaN(when.getTime())) return res.status(400).json({ ok: false, error: "rideTime must be a valid date/time" });
-    if (when.getTime() - Date.now() < 30 * 60 * 1000) {
-      return res.status(400).json({ ok: false, error: "rideTime must be at least 30 minutes from now" });
+    // Enhanced date parsing - supports "today", "tomorrow", natural language
+    const when = rideTime ? parseDateTime(rideTime) : null;
+    if (!when || isNaN(when.getTime())) {
+      return res.status(400).json({ 
+        ok: false, 
+        error: "Invalid rideTime. Use formats like 'today 6pm', 'tomorrow 9am', or 'right now'" 
+      });
+    }
+    if (!isValidFutureTime(when)) {
+      return res.status(400).json({ ok: false, error: "rideTime cannot be in the past" });
     }
 
     const ride = await Ride.create({
@@ -36,24 +55,29 @@ async function requestRide(req, res) {
       notes: notes || undefined,
     });
 
-    // Publish Kafka event for ride request
-    try {
-      await publishRideRequestEvent(ride);
-    } catch (kafkaError) {
-      console.error('❌ Failed to publish ride request event:', kafkaError.message);
-      // Don't fail the request if Kafka fails
-    }
-
     return res.json({ ok: true, ride });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
 
-// POST /rider/delete-open
+// POST /rider/delete-open - Secured with authentication
 async function deleteOpen(req, res) {
   try {
     const { telegramId } = req.body || {};
+    const requestingTelegramId = req.headers['x-telegram-id'] || req.headers['telegram-id'];
+    
+    // Verify authentication (unless internal API call)
+    const apiKey = req.headers['x-api-key'];
+    const hasValidApiKey = apiKey && apiKey === process.env.INTERNAL_API_KEY;
+    
+    if (!hasValidApiKey && (!requestingTelegramId || requestingTelegramId !== telegramId)) {
+      return res.status(403).json({ 
+        ok: false, 
+        error: "Access denied - can only delete your own rides" 
+      });
+    }
+    
     if (!telegramId) return res.status(400).json({ ok: false, error: "telegramId is required" });
 
     const rider = await Rider.findOne({ telegramId: String(telegramId) });
@@ -61,25 +85,39 @@ async function deleteOpen(req, res) {
 
     const ride = await Ride.findOneAndDelete({ riderId: rider._id, status: "open" });
     if (!ride) return res.status(404).json({ ok: false, error: "No open ride found" });
-
-    // Publish Kafka event for ride cancellation
-    try {
-      await publishRideCancelledEvent(ride._id, 'rider', 'Rider deleted open ride request');
-    } catch (kafkaError) {
-      console.error('❌ Failed to publish ride cancelled event:', kafkaError.message);
-      // Don't fail the request if Kafka fails
-    }
-
     return res.json({ ok: true, deleted: ride._id });
   } catch (e) {
     return res.status(500).json({ ok: false, error: e.message });
   }
 }
 
-// GET /rider/history/:telegramId
+// GET /rider/history/:telegramId - Secured with authentication
 async function history(req, res) {
   try {
     const telegramId = String(req.params.telegramId);
+    const requestingTelegramId = req.headers['x-telegram-id'] || req.headers['telegram-id'];
+    
+    // Check for API key (internal system access) OR user authentication
+    const apiKey = req.headers['x-api-key'];
+    const hasValidApiKey = apiKey && apiKey === process.env.INTERNAL_API_KEY;
+    const isOwnData = requestingTelegramId && requestingTelegramId === telegramId;
+    
+    if (!hasValidApiKey && !isOwnData) {
+      // Log security violation
+      console.warn('[SECURITY] Unauthorized access attempt to rider history:', {
+        timestamp: new Date().toISOString(),
+        requestingId: requestingTelegramId || 'none',
+        targetId: telegramId,
+        endpoint: 'history',
+        ip: req.ip || req.connection?.remoteAddress
+      });
+      
+      return res.status(403).json({ 
+        ok: false, 
+        error: "Access denied - can only view your own ride history" 
+      });
+    }
+    
     const rider = await Rider.findOne({ telegramId });
     if (!rider) return res.status(404).json({ ok: false, error: "Rider not found" });
 
@@ -94,10 +132,33 @@ async function history(req, res) {
   }
 }
 
-// GET /rider/stats/:telegramId
+// GET /rider/stats/:telegramId - Secured with authentication
 async function stats(req, res) {
   try {
     const telegramId = String(req.params.telegramId);
+    const requestingTelegramId = req.headers['x-telegram-id'] || req.headers['telegram-id'];
+    
+    // Check for API key (internal system access) OR user authentication
+    const apiKey = req.headers['x-api-key'];
+    const hasValidApiKey = apiKey && apiKey === process.env.INTERNAL_API_KEY;
+    const isOwnData = requestingTelegramId && requestingTelegramId === telegramId;
+    
+    if (!hasValidApiKey && !isOwnData) {
+      // Log security violation
+      console.warn('[SECURITY] Unauthorized access attempt to rider stats:', {
+        timestamp: new Date().toISOString(),
+        requestingId: requestingTelegramId || 'none',
+        targetId: telegramId,
+        endpoint: 'stats',
+        ip: req.ip || req.connection?.remoteAddress
+      });
+      
+      return res.status(403).json({ 
+        ok: false, 
+        error: "Access denied - can only view your own statistics" 
+      });
+    }
+    
     const rider = await Rider.findOne({ telegramId });
     if (!rider) return res.status(404).json({ ok: false, error: "Rider not found" });
 

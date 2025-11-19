@@ -1,0 +1,12 @@
+{
+  "type": "record",
+  "name": "RawEvent",
+  "namespace": "rideease",
+  "fields": [
+    { "name": "type", "type": "string" },
+    { "name": "userId", "type": "string" },
+    { "name": "itemId", "type": ["null","string"], "default": null },
+    { "name": "ts", "type": {"type":"long","logicalType":"timestamp-millis"} },
+    { "name": "payload", "type": ["null", {"type":"map","values":"string"}], "default": null }
+  ]
+}

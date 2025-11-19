@@ -30,6 +30,20 @@ const RideSchema = new mongoose.Schema(
     bid: { type: Number, min: 0, default: 0 },
     timeOfRide: { type: Date, required: true },
 
+    // Route information
+    routeDistance: {
+      meters: { type: Number },
+      miles: { type: Number },
+      text: { type: String }
+    },
+    routeDuration: {
+      seconds: { type: Number },
+      minutes: { type: Number },
+      text: { type: String }
+    },
+    estimatedDropoffTime: { type: Date },
+    hasTrafficData: { type: Boolean, default: false },
+
     // Status lifecycle
     status: {
       type: String,
@@ -37,6 +51,10 @@ const RideSchema = new mongoose.Schema(
       default: "open",
       index: true,
     },
+
+    // Automated task tracking fields
+    statusNotificationSent: { type: Boolean, default: false },
+    reminderSent: { type: Boolean, default: false },
 
     // Optional metadata
     notes: { type: String, trim: true },
@@ -50,6 +68,12 @@ RideSchema.index({ dropLocation: "2dsphere" });
 
 // Common compound index for queries like: open rides by time
 RideSchema.index({ status: 1, timeOfRide: 1 });
+
+// Index for rider's active rides lookup (used in /me command)
+RideSchema.index({ riderId: 1, status: 1, createdAt: -1 });
+
+// Index for driver's active rides lookup
+RideSchema.index({ driverId: 1, status: 1, createdAt: -1 });
 
 module.exports =
   mongoose.models.Ride || mongoose.model("Ride", RideSchema);

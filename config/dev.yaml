@@ -1,5 +1,0 @@
-extends: default
-env: dev
-recommender:
-  offline:
-    cutoffDays: 14

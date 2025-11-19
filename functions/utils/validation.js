@@ -12,6 +12,90 @@ const debug = (message, data = null) => {
   }
 };
 
+// ==================== SECURITY VALIDATION ====================
+
+function validateTelegramId(id) {
+  if (!id) {
+    throw new Error('Telegram ID is required');
+  }
+  
+  if (typeof id !== 'number' && typeof id !== 'string') {
+    throw new Error('Invalid Telegram ID type');
+  }
+  
+  const numId = Number(id);
+  if (isNaN(numId) || numId <= 0 || numId > Number.MAX_SAFE_INTEGER) {
+    throw new Error('Invalid Telegram ID format');
+  }
+  
+  return true;
+}
+
+function validateCoordinates(coords) {
+  if (!coords) {
+    throw new Error('Coordinates are required');
+  }
+  
+  if (typeof coords !== 'object' || !coords.coordinates || !Array.isArray(coords.coordinates)) {
+    throw new Error('Invalid coordinates format');
+  }
+  
+  if (coords.coordinates.length !== 2) {
+    throw new Error('Coordinates must have exactly 2 values [longitude, latitude]');
+  }
+  
+  const [lng, lat] = coords.coordinates;
+  
+  if (typeof lng !== 'number' || typeof lat !== 'number') {
+    throw new Error('Coordinates must be numbers');
+  }
+  
+  if (lat < -90 || lat > 90) {
+    throw new Error('Latitude must be between -90 and 90');
+  }
+  
+  if (lng < -180 || lng > 180) {
+    throw new Error('Longitude must be between -180 and 180');
+  }
+  
+  return true;
+}
+
+function sanitizeInput(input, maxLength = 1000) {
+  if (typeof input !== 'string') {
+    return String(input);
+  }
+  
+  // Remove potential XSS
+  let sanitized = input
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+\s*=/gi, '');
+  
+  // Limit length
+  if (sanitized.length > maxLength) {
+    sanitized = sanitized.substring(0, maxLength);
+  }
+  
+  return sanitized.trim();
+}
+
+function validateObjectId(id) {
+  if (!id) {
+    throw new Error('ObjectId is required');
+  }
+  
+  const objectIdPattern = /^[0-9a-fA-F]{24}$/;
+  const idString = String(id);
+  
+  if (!objectIdPattern.test(idString)) {
+    throw new Error('Invalid ObjectId format');
+  }
+  
+  return true;
+}
+
 // ==================== INPUT VALIDATION ====================
 
 function looksLikePhone(s="") {
@@ -75,12 +159,9 @@ function validateRideRequest({ telegramId, pickupText, destinationText, bid, rid
   if (rideTime) {
     const requestedTime = new Date(rideTime);
     const now = new Date();
-    const minTime = new Date(now.getTime() + 30 * 60 * 1000); // 30 minutes from now
     
     if (requestedTime <= now) {
       errs.push("Ride time must be in the future");
-    } else if (requestedTime < minTime) {
-      errs.push("Ride time must be at least 30 minutes in the future");
     }
   }
   
@@ -101,11 +182,11 @@ function validateDriverAvailability({ telegramId, locationText, radiusMiles, dur
   // Validate radius
   const radius = Number(radiusMiles);
   if (!(radius > 0)) {
-    errs.push("Radius must be a positive number");
+    errs.push("Pickup distance must be a positive number");
   } else if (radius < 1) {
-    errs.push("Radius must be at least 1 mile");
+    errs.push("Pickup distance must be at least 1 mile");
   } else if (radius > 50) {
-    errs.push("Radius cannot exceed 50 miles");
+    errs.push("Pickup distance cannot exceed 50 miles");
   }
   
   // Validate duration
@@ -113,7 +194,11 @@ function validateDriverAvailability({ telegramId, locationText, radiusMiles, dur
   if (!(duration > 0)) {
     errs.push("Duration must be a positive number");
   } else if (duration < 1) {
-    errs.push("Duration must be at least 1 hour");
+    if (duration >= 0.5) {
+      errs.push("Duration must be at least 1 hour. Did you mean 1 hour instead of minutes?");
+    } else {
+      errs.push("Duration must be at least 1 hour. Please use hours instead of minutes (e.g., '2 hours')");
+    }
   } else if (duration > 24) {
     errs.push("Duration cannot exceed 24 hours");
   }
@@ -239,14 +324,9 @@ function validateDriverAvailability(driverId, existingAvailability) {
 function validateRideTime(rideTime) {
   const now = new Date();
   const requestedTime = new Date(rideTime);
-  const minTime = new Date(now.getTime() + 30 * 60 * 1000); // 30 minutes from now
   
   if (requestedTime <= now) {
     return "Ride time must be in the future";
-  }
-  
-  if (requestedTime < minTime) {
-    return "Ride time must be at least 30 minutes in the future";
   }
   
   return null;
@@ -354,6 +434,163 @@ function validateRideState(rideId, requiredState) {
   return true; // Placeholder
 }
 
+// Driver registration validation
+function validateDriverRegistration({ name, phoneNumber, telegramUsername, licensePlateNumber, vehicleColour }) {
+  const errs = [];
+  
+  debug("Validating driver registration", { name, phoneNumber, telegramUsername, licensePlateNumber, vehicleColour });
+  
+  // Validate name
+  if (!name || name.trim() === "") {
+    errs.push("Name is required");
+  } else if (name.length < 2) {
+    errs.push("Name must be at least 2 characters long");
+  } else if (name.length > 50) {
+    errs.push("Name cannot exceed 50 characters");
+  } else if (!/^[a-zA-Z\s'-]+$/.test(name)) {
+    errs.push("Name can only contain letters, spaces, hyphens, and apostrophes");
+  }
+  
+  // Validate phone number
+  if (!phoneNumber || phoneNumber.trim() === "") {
+    errs.push("Phone number is required");
+  } else if (!looksLikePhone(phoneNumber)) {
+    errs.push("Phone number must be a valid format (7-15 digits)");
+  }
+  
+  // Validate telegram username
+  if (!telegramUsername || telegramUsername.trim() === "") {
+    errs.push("Telegram username is required");
+  } else {
+    const cleanUsername = telegramUsername.replace('@', '');
+    if (cleanUsername.length < 5) {
+      errs.push("Telegram username must be at least 5 characters long");
+    } else if (cleanUsername.length > 32) {
+      errs.push("Telegram username cannot exceed 32 characters");
+    } else if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
+      errs.push("Telegram username can only contain letters, numbers, and underscores");
+    }
+  }
+  
+
+  
+  // Validate license plate
+  if (!licensePlateNumber || licensePlateNumber.trim() === "") {
+    errs.push("License plate number is required");
+  } else if (licensePlateNumber.length < 2) {
+    errs.push("License plate must be at least 2 characters long");
+  } else if (licensePlateNumber.length > 15) {
+    errs.push("License plate cannot exceed 15 characters");
+  } else if (!/^[a-zA-Z0-9\s-]+$/.test(licensePlateNumber)) {
+    errs.push("License plate can only contain letters, numbers, spaces, and hyphens");
+  }
+  
+  // Validate vehicle color
+  if (!vehicleColour || vehicleColour.trim() === "") {
+    errs.push("Vehicle color is required");
+  } else if (vehicleColour.length < 3) {
+    errs.push("Vehicle color must be at least 3 characters long");
+  } else if (vehicleColour.length > 30) {
+    errs.push("Vehicle color cannot exceed 30 characters");
+  } else if (!/^[a-zA-Z\s]+$/.test(vehicleColour)) {
+    errs.push("Vehicle color can only contain letters and spaces");
+  }
+  
+  debug("Driver registration validation complete", { errorsCount: errs.length, errors: errs });
+  return errs;
+}
+
+// Rider registration validation
+function validateRiderRegistration({ name, phoneNumber, telegramUsername, homeAddress, workAddress }) {
+  const errs = [];
+  
+  debug("Validating rider registration", { name, phoneNumber, telegramUsername, homeAddress, workAddress });
+  
+  // Validate name (same as driver)
+  if (!name || name.trim() === "") {
+    errs.push("Name is required");
+    debug("Name validation failed: empty or missing");
+  } else if (name.length < 2) {
+    errs.push("Name must be at least 2 characters long");
+    debug(`Name validation failed: too short (${name.length} characters)`);
+  } else if (name.length > 50) {
+    errs.push("Name cannot exceed 50 characters");
+    debug(`Name validation failed: too long (${name.length} characters)`);
+  } else if (!/^[a-zA-Z\s'-]+$/.test(name)) {
+    errs.push("Name can only contain letters, spaces, hyphens, and apostrophes");
+    debug(`Name validation failed: invalid characters in "${name}"`);
+  } else {
+    debug("Name validation passed");
+  }
+  
+  // Validate phone number (same as driver)
+  if (!phoneNumber || phoneNumber.trim() === "") {
+    errs.push("Phone number is required");
+    debug("Phone validation failed: empty or missing");
+  } else if (!looksLikePhone(phoneNumber)) {
+    errs.push(`Phone number "${phoneNumber}" must be a valid format (7-15 digits). Examples: +1234567890, 123-456-7890, (123) 456-7890`);
+    debug(`Phone validation failed: "${phoneNumber}" doesn't look like a phone number`);
+  } else {
+    debug(`Phone validation passed: "${phoneNumber}"`);
+  }
+  
+  // Validate telegram username (same as driver)
+  if (!telegramUsername || telegramUsername.trim() === "") {
+    errs.push("Telegram username is required");
+    debug("Username validation failed: empty or missing");
+  } else {
+    const cleanUsername = telegramUsername.replace('@', '');
+    if (cleanUsername.length < 5) {
+      errs.push(`Telegram username "${telegramUsername}" must be at least 5 characters long`);
+      debug(`Username validation failed: too short (${cleanUsername.length} characters)`);
+    } else if (cleanUsername.length > 32) {
+      errs.push(`Telegram username "${telegramUsername}" cannot exceed 32 characters`);
+      debug(`Username validation failed: too long (${cleanUsername.length} characters)`);
+    } else if (!/^[a-zA-Z0-9_]+$/.test(cleanUsername)) {
+      errs.push(`Telegram username "${telegramUsername}" can only contain letters, numbers, and underscores`);
+      debug(`Username validation failed: invalid characters in "${cleanUsername}"`);
+    } else {
+      debug(`Username validation passed: "${telegramUsername}"`);
+    }
+  }
+  
+  // Validate home address (optional)
+  if (homeAddress && homeAddress.trim() !== "") {
+    if (!looksLikeAddress(homeAddress)) {
+      errs.push(`Home address "${homeAddress}" must be a valid address format (include street, city, state)`);
+      debug(`Home address validation failed: "${homeAddress}" doesn't look like an address`);
+    } else if (homeAddress.length > 200) {
+      errs.push(`Home address cannot exceed 200 characters (currently ${homeAddress.length})`);
+      debug(`Home address validation failed: too long (${homeAddress.length} characters)`);
+    } else {
+      debug(`Home address validation passed: "${homeAddress}"`);
+    }
+  } else {
+    debug("Home address is empty (optional field)");
+  }
+  
+  // Validate work address (optional)
+  if (workAddress && workAddress.trim() !== "") {
+    if (!looksLikeAddress(workAddress)) {
+      errs.push(`Work address "${workAddress}" must be a valid address format (include street, city, state)`);
+      debug(`Work address validation failed: "${workAddress}" doesn't look like an address`);
+    } else if (workAddress.length > 200) {
+      errs.push(`Work address cannot exceed 200 characters (currently ${workAddress.length})`);
+      debug(`Work address validation failed: too long (${workAddress.length} characters)`);
+    } else {
+      debug(`Work address validation passed: "${workAddress}"`);
+    }
+  } else {
+    debug("Work address is empty (optional field)");
+  }
+  
+  debug("Rider registration validation complete", { errorsCount: errs.length, errors: errs });
+  return {
+    isValid: errs.length === 0,
+    errors: errs
+  };
+}
+
 module.exports = {
   looksLikePhone,
   normalizePhone,
@@ -370,6 +607,8 @@ module.exports = {
   sanitizeName,
   sanitizeAddress,
   sanitizeBid,
+  validateDriverRegistration,
+  validateRiderRegistration,
   validateDuplicateRequest,
   validateDriverAvailability: validateDriverAvailability,
   validateRideTime,
@@ -379,5 +618,10 @@ module.exports = {
   checkRateLimit,
   getRateLimitRemaining,
   validateUserState,
-  validateRideState
+  validateRideState,
+  // New security validations
+  validateTelegramId,
+  validateCoordinates,
+  sanitizeInput,
+  validateObjectId
 };

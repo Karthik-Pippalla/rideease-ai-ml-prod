@@ -1,0 +1,10 @@
+.git
+node_modules
+functions/node_modules
+firebase-debug.log*
+.firebase
+coverage
+.DS_Store
+npm-debug.log*
+tmp
+model_registry/*/*.json

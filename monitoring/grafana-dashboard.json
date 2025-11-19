@@ -1,0 +1,55 @@
+{
+  "title": "RideEase Recommender SLOs",
+  "uid": "rideease-reco",
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "p95 prediction latency (ms)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(rideease_prediction_latency_ms_bucket[5m])) by (le))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Prediction error rate",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit" }
+      },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(rideease_prediction_errors_total[5m])) / sum(rate(rideease_prediction_requests_total[5m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Service uptime",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rideease_service_uptime_seconds",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Variant request volume",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(rideease_prediction_requests_total[5m])) by (variant)",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

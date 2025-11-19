@@ -30,17 +30,6 @@ const RiderSchema = new mongoose.Schema(
     homeGeo: GeoPoint,
     workGeo: GeoPoint,
 
-    // Current request (these are *ephemeral* but you asked to include them)
-    rideRequest: { type: Boolean, default: false },
-    pickupLocationName: { type: String, trim: true },
-    pickupLocation: GeoPoint,
-    dropLocationName: { type: String, trim: true },
-    dropLocation: GeoPoint,
-    timeOfRide: { type: Date },
-
-    // History
-    pastRidesIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Ride" }],
-
     // Reputation
     rating: { type: Number, min: 0, max: 5, default: 0 },
   },
@@ -48,8 +37,6 @@ const RiderSchema = new mongoose.Schema(
 );
 
 // Geo indexes for fast lookups - sparse indexes only index documents that have these fields
-RiderSchema.index({ pickupLocation: "2dsphere" }, { sparse: true });
-RiderSchema.index({ dropLocation: "2dsphere" }, { sparse: true });
 RiderSchema.index({ homeGeo: "2dsphere" }, { sparse: true });
 RiderSchema.index({ workGeo: "2dsphere" }, { sparse: true });
 

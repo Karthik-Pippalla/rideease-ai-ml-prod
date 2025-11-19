@@ -1,0 +1,50 @@
+name: nightly-model-retraining
+
+on:
+  schedule:
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+jobs:
+  train-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install function deps
+        working-directory: functions
+        run: npm ci --omit=dev
+
+      - name: Build trainer image
+        run: docker build -f Dockerfile.train -t ghcr.io/${{ github.repository }}/trainer:${{ github.sha }} .
+
+      - name: Run training job
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: ${{ secrets.MONGODB_DB }}
+          MODEL_REGISTRY_ROOT: /artifacts
+          MODEL_REGISTRY_URI: ${{ secrets.MODEL_REGISTRY_URI }}
+          PIPELINE_GIT_SHA: ${{ github.sha }}
+        run: |
+          mkdir -p model_registry_run
+          docker run --rm \
+            -e MONGODB_URI \
+            -e MONGODB_DB \
+            -e MODEL_REGISTRY_ROOT=/artifacts \
+            -e MODEL_REGISTRY_URI \
+            -e PIPELINE_GIT_SHA \
+            -v ${{ github.workspace }}/model_registry_run:/artifacts \
+            ghcr.io/${{ github.repository }}/trainer:${{ github.sha }}
+
+      - name: Upload registry artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-registry-${{ github.sha }}
+          path: model_registry_run

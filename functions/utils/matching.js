@@ -1,15 +1,67 @@
 const Ride = require("../models/ride");
 const Driver = require("../models/driver");
 const { haversineMiles } = require("./distance");
-const { sendTelegramMessage } = require("./notifications");
+const notifications = require("./notifications");
 
 /**
  * Find available drivers for a given ride and notify them
  */
 async function findDriversForRide(ride) {
-  const drivers = await Driver.find({ availability: true, availableLocation: { $exists: true } }).lean();
+  const now = new Date();
+  
+  // First, clean up expired availability
+  await Driver.updateMany(
+    { 
+      availability: true,
+      timeTillAvailable: { $lt: now }
+    },
+    {
+      $set: { 
+        availability: false,
+        availableLocationName: undefined,
+        availableLocation: undefined,
+        myRadiusOfAvailabilityMiles: 0
+      },
+      $unset: {
+        availabilityStartedAt: 1
+      }
+    }
+  );
+  
+  const drivers = await Driver.find({ 
+    availability: true, 
+    availableLocation: { $exists: true },
+    $or: [
+      { timeTillAvailable: { $exists: false } }, // No expiration set
+      { timeTillAvailable: null }, // No expiration set
+      { timeTillAvailable: { $gt: now } } // Not expired yet
+    ]
+  }).lean();
+  
+  console.log(`🚗 MATCHING: Found ${drivers.length} available drivers in database for ride ${ride._id}`);
+  
   const out = [];
   for (const d of drivers) {
+    // Check if ride time falls within driver's availability window
+    if (ride.timeOfRide || ride.rideTime) {
+      const rideTime = new Date(ride.timeOfRide || ride.rideTime);
+      const availabilityStart = d.availabilityStartedAt ? new Date(d.availabilityStartedAt) : new Date(d.updatedAt);
+      const availabilityEnd = d.timeTillAvailable ? new Date(d.timeTillAvailable) : null;
+      
+      // If driver has a specific availability window, check if ride time is within it
+      if (availabilityEnd && (rideTime < availabilityStart || rideTime > availabilityEnd)) {
+        console.log(`Skipping driver ${d.telegramId} - ride time ${rideTime.toLocaleString()} outside availability window ${availabilityStart.toLocaleString()} - ${availabilityEnd.toLocaleString()}`);
+        continue;
+      }
+      
+      // Don't match rides that are more than 24 hours in the future from when driver became available
+      const maxFutureTime = new Date((availabilityStart || now).getTime() + 24 * 60 * 60 * 1000);
+      if (rideTime > maxFutureTime) {
+        console.log(`Skipping driver ${d.telegramId} - ride time ${rideTime.toLocaleString()} too far in future from availability start ${(availabilityStart || now).toLocaleString()}`);
+        continue;
+      }
+    }
+    
     const dist = haversineMiles(
       { coordinates: d.availableLocation.coordinates },
       { coordinates: ride.pickupLocation.coordinates }
@@ -22,19 +74,41 @@ async function findDriversForRide(ride) {
   out.sort((a, b) => a.distanceMi - b.distanceMi);
   
   // Notify matched drivers about the new ride request
+  console.log(`🚗 MATCHING: Attempting to notify ${out.length} matched drivers for ride ${ride._id}`);
+  console.log(`🚗 MATCHING: Matched drivers:`, out.map(m => ({ driverId: m.driver._id, telegramId: m.driver.telegramId, availability: m.driver.availability })));
   for (const match of out) {
-    const message = `🚗 New Ride Request Available!\n\n` +
-      `📍 Pickup: ${ride.pickupLocationName || 'Location provided'}\n` +
-      `📍 Drop: ${ride.dropLocationName || 'Destination provided'}\n` +
-      `💰 Bid: $${ride.bid || 'Not specified'}\n` +
-      `🕐 Time: ${ride.timeOfRide ? new Date(ride.timeOfRide).toLocaleString() : 'ASAP'}\n` +
-      `📏 Distance: ${match.distanceMi.toFixed(1)} miles from you\n\n` +
-      `Reply to accept this ride!`;
+    const message = `🚗 **New Ride Request Available!**\n\n` +
+      `📍 **Pickup:** ${ride.pickupLocationName || 'Location provided'}\n` +
+      `📍 **Drop:** ${ride.dropLocationName || 'Destination provided'}\n` +
+      `💰 **Bid:** $${ride.bid || 'Not specified'}\n` +
+      `🕐 **Time:** ${ride.timeOfRide ? new Date(ride.timeOfRide).toLocaleString() : 'ASAP'}\n` +
+      `📏 **Distance:** ${match.distanceMi.toFixed(1)} miles from you\n\n` +
+      `Accept this ride directly or check your available rides menu!`;
+    
+    // Create interactive buttons for immediate ride acceptance
+    const buttons = {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "✅ Accept This Ride", callback_data: `accept_specific_ride_${ride._id}` },
+            { text: "🚗 View All Rides", callback_data: "view_available_rides" }
+          ],
+          [
+            { text: "🔴 Go Unavailable", callback_data: "go_unavailable" }
+          ]
+        ]
+      }
+    };
     
     try {
-      await sendTelegramMessage(match.driver.telegramId, message);
+      console.log(`🚗 MATCHING: Notifying driver ${match.driver.telegramId}`);
+      const result = await notifications.notifyDriver(match.driver, message, { 
+        parse_mode: "Markdown",
+        ...buttons
+      });
+      console.log(`🚗 MATCHING: Notification result for ${match.driver.telegramId}:`, result?.ok ? 'SUCCESS' : 'FAILED');
     } catch (error) {
-      console.error(`Failed to notify driver ${match.driver.telegramId}:`, error);
+      console.error(`🚗 MATCHING: Failed to notify driver ${match.driver.telegramId}:`, error);
     }
   }
   
@@ -47,9 +121,65 @@ async function findDriversForRide(ride) {
 async function findMatchesForDriverAvailability(driverDoc) {
   const radius = driverDoc.myRadiusOfAvailabilityMiles || 0;
   if (!driverDoc.availableLocation || !radius) return [];
+  
+  // Check if driver's availability has expired
+  const now = new Date();
+  if (driverDoc.timeTillAvailable && now > new Date(driverDoc.timeTillAvailable)) {
+    console.log(`Driver ${driverDoc.telegramId} availability has expired`);
+    
+    // Update driver to mark as unavailable
+    await Driver.findByIdAndUpdate(driverDoc._id, {
+      $set: { 
+        availability: false,
+        availableLocationName: undefined,
+        availableLocation: undefined,
+        myRadiusOfAvailabilityMiles: 0
+      },
+      $unset: {
+        availabilityStartedAt: 1
+      }
+    });
+    
+    // Notify driver that availability has expired
+    try {
+      console.log("📱 DEBUG: Notifying driver about expired availability:", driverDoc.telegramId);
+      await notifications.notifyDriver?.(driverDoc, "⏰ **Availability Window Closed**\n\nYour availability window has automatically ended.\n\nUse /available to set new availability hours!");
+      console.log("✅ DEBUG: Driver expiration notification sent successfully");
+    } catch (notifyErr) {
+      console.error("❌ DEBUG: Failed to notify driver about expiration:", notifyErr);
+    }
+    
+    return [];
+  }
+  
   const rides = await Ride.find({ status: "open" }).lean();
   const out = [];
   for (const r of rides) {
+    // Skip rides that don't have a pickup location
+    if (!r.pickupLocation || !r.pickupLocation.coordinates) {
+      continue;
+    }
+    
+    // Check if ride time falls within driver's availability window
+    if (r.timeOfRide || r.rideTime) {
+      const rideTime = new Date(r.timeOfRide || r.rideTime);
+      const availabilityStart = driverDoc.availabilityStartedAt ? new Date(driverDoc.availabilityStartedAt) : new Date(driverDoc.updatedAt);
+      const availabilityEnd = driverDoc.timeTillAvailable ? new Date(driverDoc.timeTillAvailable) : null;
+      
+      // If driver has a specific availability window, check if ride time is within it
+      if (availabilityEnd && (rideTime < availabilityStart || rideTime > availabilityEnd)) {
+        console.log(`Skipping ride ${r._id} - time ${rideTime.toLocaleString()} outside driver availability window ${availabilityStart.toLocaleString()} - ${availabilityEnd.toLocaleString()}`);
+        continue;
+      }
+      
+      // Don't match rides that are more than 24 hours in the future from when driver became available
+      const maxFutureTime = new Date(availabilityStart.getTime() + 24 * 60 * 60 * 1000);
+      if (rideTime > maxFutureTime) {
+        console.log(`Skipping ride ${r._id} - time ${rideTime.toLocaleString()} too far in future from availability start ${availabilityStart.toLocaleString()}`);
+        continue;
+      }
+    }
+    
     const dist = haversineMiles(
       { coordinates: driverDoc.availableLocation.coordinates },
       { coordinates: r.pickupLocation.coordinates }
@@ -77,11 +207,8 @@ async function findMatchesForDriverAvailability(driverDoc) {
     
     message += `Reply to any ride to accept it!`;
     
-    try {
-      await sendTelegramMessage(driverDoc.telegramId, message);
-    } catch (error) {
-      console.error(`Failed to notify driver ${driverDoc.telegramId}:`, error);
-    }
+    // Note: Notification removed - the bot interface handles showing rides
+    // The driver will see the rides through the bot menu instead of notifications
   }
   
   return out;
@@ -109,33 +236,10 @@ async function notifyRiderOfMatch(rideId, driverInfo) {
       `🕐 Time: ${new Date(ride.timeOfRide).toLocaleString()}\n\n` +
       `Your driver will contact you shortly!`;
     
-    await sendTelegramMessage(rider.telegramId, message);
+    await notifications.notifyRider(rider, message);
     return true;
   } catch (error) {
     console.error('Failed to notify rider of match:', error);
-    return false;
-  }
-}
-
-/**
- * Notify driver when they successfully accept a ride
- */
-async function notifyDriverOfAcceptance(driverId, rideInfo) {
-  try {
-    const driver = await Driver.findById(driverId).lean();
-    if (!driver) return false;
-    
-    const message = `✅ Ride Accepted Successfully!\n\n` +
-      `📍 Pickup: ${rideInfo.pickupLocationName}\n` +
-      `📍 Drop: ${rideInfo.dropLocationName}\n` +
-      `💰 Fare: $${rideInfo.bid}\n` +
-      `🕐 Time: ${new Date(rideInfo.timeOfRide).toLocaleString()}\n\n` +
-      `Please contact the rider and head to the pickup location.`;
-    
-    await sendTelegramMessage(driver.telegramId, message);
-    return true;
-  } catch (error) {
-    console.error('Failed to notify driver of acceptance:', error);
     return false;
   }
 }
@@ -169,7 +273,7 @@ async function notifyDriversOfCancellation(rideId, reason = "Rider cancelled") {
       
       if (dist <= 10) { // Within 10 miles
         try {
-          await sendTelegramMessage(driver.telegramId, message);
+          await notifications.notifyDriver(driver, message);
         } catch (error) {
           console.error(`Failed to notify driver ${driver.telegramId} of cancellation:`, error);
         }
@@ -187,6 +291,5 @@ module.exports = {
   findDriversForRide, 
   findMatchesForDriverAvailability,
   notifyRiderOfMatch,
-  notifyDriverOfAcceptance,
   notifyDriversOfCancellation
 };

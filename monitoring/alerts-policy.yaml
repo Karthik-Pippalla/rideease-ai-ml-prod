@@ -1,0 +1,27 @@
+groups:
+  - name: rideease-recommender
+    rules:
+      - alert: RecommenderP95LatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(rideease_prediction_latency_ms_bucket[5m])) by (le)) > 400
+        for: 10m
+        labels:
+          severity: page
+        annotations:
+          summary: p95 latency above 400ms
+          runbook: monitoring/RUNBOOK.md#p95-latency
+      - alert: RecommenderErrorRateHigh
+        expr: sum(rate(rideease_prediction_errors_total[5m])) / sum(rate(rideease_prediction_requests_total[5m])) > 0.02
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: Error rate above 2%
+          runbook: monitoring/RUNBOOK.md#error-rate
+      - alert: RecommenderUptimeStalled
+        expr: rideease_service_uptime_seconds < 30
+        for: 3m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Service restarted repeatedly
+          runbook: monitoring/RUNBOOK.md#uptime

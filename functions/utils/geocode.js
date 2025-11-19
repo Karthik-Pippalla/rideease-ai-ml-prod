@@ -73,6 +73,71 @@ async function getCoordsFromAddress(address) {
   }
 }
 
+// Reverse geocoding functions
+async function googleReverseGeocode(lat, lng) {
+  debug("Google reverse geocoding", { lat, lng });
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key) {
+    debug("Google API key not set for reverse geocoding");
+    throw new Error("Google API key not set");
+  }
+  const url = `https://maps.googleapis.com/maps/api/geocode/json`;
+  const { data } = await axios.get(url, { params: { latlng: `${lat},${lng}`, key } });
+  debug("Google reverse geocoding response", { status: data.status, resultsCount: data.results?.length });
+  if (data.status !== "OK" || !data.results?.length) {
+    debug("Google reverse geocoding failed", { status: data.status, error: data.error_message });
+    throw new Error("No results");
+  }
+  const result = data.results[0];
+  debug("Google reverse geocoding successful", { address: result.formatted_address });
+  return {
+    name: result.formatted_address,
+    lat: lat,
+    lon: lng
+  };
+}
+
+async function nominatimReverseGeocode(lat, lng) {
+  debug("Nominatim reverse geocoding", { lat, lng });
+  const url = `https://nominatim.openstreetmap.org/reverse`;
+  const { data } = await axios.get(url, {
+    params: { lat, lon: lng, format: "json" },
+    headers: { "User-Agent": "RideBot/1.0 (contact@example.com)" },
+  });
+  debug("Nominatim reverse geocoding response", { display_name: data?.display_name });
+  if (!data || !data.display_name) {
+    debug("Nominatim reverse geocoding failed", { data });
+    throw new Error("No results");
+  }
+  debug("Nominatim reverse geocoding successful", { address: data.display_name });
+  return {
+    name: data.display_name,
+    lat: lat,
+    lon: lng
+  };
+}
+
+// Reverse geocode coordinates to address
+async function reverseGeocode(lat, lng) {
+  debug("Reverse geocoding coordinates", { lat, lng });
+  if (typeof lat !== 'number' || typeof lng !== 'number') {
+    debug("Invalid coordinates provided");
+    throw new Error("Invalid coordinates");
+  }
+  try {
+    debug("Trying Google reverse geocoding first");
+    return await googleReverseGeocode(lat, lng);
+  } catch (e1) {
+    debug("Google reverse geocoding failed, trying Nominatim", { error: e1.message });
+    try {
+      return await nominatimReverseGeocode(lat, lng);
+    } catch (e2) {
+      debug("Both reverse geocoding services failed", { googleError: e1.message, nominatimError: e2.message });
+      throw new Error(`Could not reverse geocode location ${lat},${lng}`);
+    }
+  }
+}
+
 // Alias function to match existing usage in the codebase
 async function geocodeAddress(address) {
   debug("Geocoding address (alias)", { address });
@@ -90,4 +155,4 @@ async function geocodeAddress(address) {
   }
 }
 
-module.exports = { getCoordsFromAddress, geocodeAddress };
+module.exports = { getCoordsFromAddress, geocodeAddress, reverseGeocode };

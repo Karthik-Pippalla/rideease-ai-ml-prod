@@ -137,16 +137,8 @@ async function deleteWebhook(botToken, botName) {
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
-  let baseUrl = args[1];
-
-  // Fallback to WEBHOOK_URL from env if not supplied
-  if (command === 'set' && !baseUrl) {
-    baseUrl = process.env.WEBHOOK_URL;
-    if (baseUrl) {
-      console.log(`ℹ️ Using WEBHOOK_URL from env: ${baseUrl}`);
-    }
-  }
-
+  const baseUrl = args[1];
+  
   console.log('🚗 RideEase Telegram Bot Webhook Setup');
   console.log('=====================================');
   
@@ -166,8 +158,18 @@ async function main() {
   }
   
   if (command === 'set' && baseUrl) {
-    const driverWebhookUrl = `${baseUrl}/driverBotWebhook`;
-    const riderWebhookUrl = `${baseUrl}/riderBotWebhook`;
+    // For Firebase Functions v2, each function has its own URL
+    let driverWebhookUrl, riderWebhookUrl;
+    
+    if (baseUrl === 'firebase-functions-v2' || baseUrl.includes('driverbotwebhook') || baseUrl.includes('riderbotwebhook')) {
+      // Use the specific Firebase Functions v2 URLs from your deployment
+      driverWebhookUrl = 'https://driverbotwebhook-jtaxf6hktq-uc.a.run.app';
+      riderWebhookUrl = 'https://riderbotwebhook-jtaxf6hktq-uc.a.run.app';
+    } else {
+      // Legacy base URL format
+      driverWebhookUrl = `${baseUrl}/driverBotWebhook`;
+      riderWebhookUrl = `${baseUrl}/riderBotWebhook`;
+    }
     
     console.log('\n🔧 Setting up webhooks...\n');
     
@@ -195,9 +197,12 @@ async function main() {
   console.log('  node webhookSetup.js info               - Get webhook info');
   console.log('  node webhookSetup.js delete             - Delete webhooks');
   console.log('\nExamples:');
+  console.log('  node webhookSetup.js set firebase-functions-v2');
   console.log('  node webhookSetup.js set https://your-project.cloudfunctions.net/api');
   console.log('  node webhookSetup.js info');
   console.log('  node webhookSetup.js delete');
+  console.log('\nFor Firebase Functions v2 (current deployment):');
+  console.log('  node webhookSetup.js set firebase-functions-v2');
   console.log('\nNote: Make sure your .env file contains:');
   console.log('  TELEGRAM_BOT_TOKEN=<rider_bot_token>');
   console.log('  TELEGRAM_BOT_TOKEN_DRIVER=<driver_bot_token>');
