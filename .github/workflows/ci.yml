@@ -34,14 +34,15 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-          docker tag rideease-app:latest ghcr.io/${{ github.repository_owner }}/rideease-app:${{ github.sha }}
-          docker tag rideease-app:latest ghcr.io/${{ github.repository_owner }}/rideease-app:latest
-          docker tag rideease-train:latest ghcr.io/${{ github.repository_owner }}/rideease-train:${{ github.sha }}
-          docker tag rideease-train:latest ghcr.io/${{ github.repository_owner }}/rideease-train:latest
-          docker push ghcr.io/${{ github.repository_owner }}/rideease-app:${{ github.sha }}
-          docker push ghcr.io/${{ github.repository_owner }}/rideease-app:latest
-          docker push ghcr.io/${{ github.repository_owner }}/rideease-train:${{ github.sha }}
-          docker push ghcr.io/${{ github.repository_owner }}/rideease-train:latest
+          REPO_OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker tag rideease-app:latest ghcr.io/${REPO_OWNER_LOWER}/rideease-app:${{ github.sha }}
+          docker tag rideease-app:latest ghcr.io/${REPO_OWNER_LOWER}/rideease-app:latest
+          docker tag rideease-train:latest ghcr.io/${REPO_OWNER_LOWER}/rideease-train:${{ github.sha }}
+          docker tag rideease-train:latest ghcr.io/${REPO_OWNER_LOWER}/rideease-train:latest
+          docker push ghcr.io/${REPO_OWNER_LOWER}/rideease-app:${{ github.sha }}
+          docker push ghcr.io/${REPO_OWNER_LOWER}/rideease-app:latest
+          docker push ghcr.io/${REPO_OWNER_LOWER}/rideease-train:${{ github.sha }}
+          docker push ghcr.io/${REPO_OWNER_LOWER}/rideease-train:latest
   deploy:
     needs: build-test
     if: github.ref == 'refs/heads/main'
