@@ -1,0 +1,27 @@
+{
+  "version": "v1.0.0",
+  "dataSnapshotId": "20251119-214332",
+  "pipelineGitSha": "5666b76",
+  "containerImageDigest": "dev-local",
+  "artifactUri": "gs://rideease-models/v1.0.0/model.json",
+  "metrics": {
+    "offline": {
+      "users": 0,
+      "avgNDCG": 0,
+      "avgHitRate": 0,
+      "low": {
+        "ndcg": 0,
+        "hit": 0,
+        "n": 0
+      },
+      "high": {
+        "ndcg": 0,
+        "hit": 0,
+        "n": 0
+      }
+    },
+    "evalCutoff": "2025-11-19T02:43:37.907Z",
+    "lookbackDays": 30
+  },
+  "trainedAt": "2025-11-20T02:43:37.908Z"
+}

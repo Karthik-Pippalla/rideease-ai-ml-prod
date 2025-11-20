@@ -1,0 +1,211 @@
+# HELP rideease_process_cpu_user_seconds_total Total user CPU time spent in seconds.
+# TYPE rideease_process_cpu_user_seconds_total counter
+rideease_process_cpu_user_seconds_total 22.541169999999997
+
+# HELP rideease_process_cpu_system_seconds_total Total system CPU time spent in seconds.
+# TYPE rideease_process_cpu_system_seconds_total counter
+rideease_process_cpu_system_seconds_total 16.214668
+
+# HELP rideease_process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE rideease_process_cpu_seconds_total counter
+rideease_process_cpu_seconds_total 38.755838
+
+# HELP rideease_process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE rideease_process_start_time_seconds gauge
+rideease_process_start_time_seconds 1763587700
+
+# HELP rideease_process_resident_memory_bytes Resident memory size in bytes.
+# TYPE rideease_process_resident_memory_bytes gauge
+rideease_process_resident_memory_bytes 80265216
+
+# HELP rideease_nodejs_eventloop_lag_seconds Lag of event loop in seconds.
+# TYPE rideease_nodejs_eventloop_lag_seconds gauge
+rideease_nodejs_eventloop_lag_seconds 0.00161175
+
+# HELP rideease_nodejs_eventloop_lag_min_seconds The minimum recorded event loop delay.
+# TYPE rideease_nodejs_eventloop_lag_min_seconds gauge
+rideease_nodejs_eventloop_lag_min_seconds 0.000115712
+
+# HELP rideease_nodejs_eventloop_lag_max_seconds The maximum recorded event loop delay.
+# TYPE rideease_nodejs_eventloop_lag_max_seconds gauge
+rideease_nodejs_eventloop_lag_max_seconds 6992.206757887
+
+# HELP rideease_nodejs_eventloop_lag_mean_seconds The mean of the recorded event loop delays.
+# TYPE rideease_nodejs_eventloop_lag_mean_seconds gauge
+rideease_nodejs_eventloop_lag_mean_seconds 0.030958552815428378
+
+# HELP rideease_nodejs_eventloop_lag_stddev_seconds The standard deviation of the recorded event loop delays.
+# TYPE rideease_nodejs_eventloop_lag_stddev_seconds gauge
+rideease_nodejs_eventloop_lag_stddev_seconds 9.35822540300248
+
+# HELP rideease_nodejs_eventloop_lag_p50_seconds The 50th percentile of the recorded event loop delays.
+# TYPE rideease_nodejs_eventloop_lag_p50_seconds gauge
+rideease_nodejs_eventloop_lag_p50_seconds 0.011067391
+
+# HELP rideease_nodejs_eventloop_lag_p90_seconds The 90th percentile of the recorded event loop delays.
+# TYPE rideease_nodejs_eventloop_lag_p90_seconds gauge
+rideease_nodejs_eventloop_lag_p90_seconds 0.012050431
+
+# HELP rideease_nodejs_eventloop_lag_p99_seconds The 99th percentile of the recorded event loop delays.
+# TYPE rideease_nodejs_eventloop_lag_p99_seconds gauge
+rideease_nodejs_eventloop_lag_p99_seconds 0.012148735
+
+# HELP rideease_nodejs_active_resources Number of active resources that are currently keeping the event loop alive, grouped by async resource type.
+# TYPE rideease_nodejs_active_resources gauge
+rideease_nodejs_active_resources{type="PipeWrap"} 2
+rideease_nodejs_active_resources{type="TCPServerWrap"} 1
+rideease_nodejs_active_resources{type="TCPSocketWrap"} 19
+rideease_nodejs_active_resources{type="Timeout"} 3
+rideease_nodejs_active_resources{type="Immediate"} 1
+
+# HELP rideease_nodejs_active_resources_total Total number of active resources.
+# TYPE rideease_nodejs_active_resources_total gauge
+rideease_nodejs_active_resources_total 26
+
+# HELP rideease_nodejs_active_handles Number of active libuv handles grouped by handle type. Every handle type is C++ class name.
+# TYPE rideease_nodejs_active_handles gauge
+rideease_nodejs_active_handles{type="Socket"} 3
+rideease_nodejs_active_handles{type="Server"} 1
+rideease_nodejs_active_handles{type="TLSSocket"} 18
+
+# HELP rideease_nodejs_active_handles_total Total number of active handles.
+# TYPE rideease_nodejs_active_handles_total gauge
+rideease_nodejs_active_handles_total 22
+
+# HELP rideease_nodejs_active_requests Number of active libuv requests grouped by request type. Every request type is C++ class name.
+# TYPE rideease_nodejs_active_requests gauge
+
+# HELP rideease_nodejs_active_requests_total Total number of active requests.
+# TYPE rideease_nodejs_active_requests_total gauge
+rideease_nodejs_active_requests_total 0
+
+# HELP rideease_nodejs_heap_size_total_bytes Process heap size from Node.js in bytes.
+# TYPE rideease_nodejs_heap_size_total_bytes gauge
+rideease_nodejs_heap_size_total_bytes 48267264
+
+# HELP rideease_nodejs_heap_size_used_bytes Process heap size used from Node.js in bytes.
+# TYPE rideease_nodejs_heap_size_used_bytes gauge
+rideease_nodejs_heap_size_used_bytes 30938432
+
+# HELP rideease_nodejs_external_memory_bytes Node.js external memory size in bytes.
+# TYPE rideease_nodejs_external_memory_bytes gauge
+rideease_nodejs_external_memory_bytes 21160674
+
+# HELP rideease_nodejs_heap_space_size_total_bytes Process heap space size total from Node.js in bytes.
+# TYPE rideease_nodejs_heap_space_size_total_bytes gauge
+rideease_nodejs_heap_space_size_total_bytes{space="read_only"} 0
+rideease_nodejs_heap_space_size_total_bytes{space="new"} 16777216
+rideease_nodejs_heap_space_size_total_bytes{space="old"} 20709376
+rideease_nodejs_heap_space_size_total_bytes{space="code"} 3670016
+rideease_nodejs_heap_space_size_total_bytes{space="shared"} 0
+rideease_nodejs_heap_space_size_total_bytes{space="trusted"} 4014080
+rideease_nodejs_heap_space_size_total_bytes{space="shared_trusted"} 0
+rideease_nodejs_heap_space_size_total_bytes{space="new_large_object"} 0
+rideease_nodejs_heap_space_size_total_bytes{space="large_object"} 2899968
+rideease_nodejs_heap_space_size_total_bytes{space="code_large_object"} 196608
+rideease_nodejs_heap_space_size_total_bytes{space="shared_large_object"} 0
+rideease_nodejs_heap_space_size_total_bytes{space="shared_trusted_large_object"} 0
+rideease_nodejs_heap_space_size_total_bytes{space="trusted_large_object"} 0
+
+# HELP rideease_nodejs_heap_space_size_used_bytes Process heap space size used from Node.js in bytes.
+# TYPE rideease_nodejs_heap_space_size_used_bytes gauge
+rideease_nodejs_heap_space_size_used_bytes{space="read_only"} 0
+rideease_nodejs_heap_space_size_used_bytes{space="new"} 3644776
+rideease_nodejs_heap_space_size_used_bytes{space="old"} 18725608
+rideease_nodejs_heap_space_size_used_bytes{space="code"} 2994816
+rideease_nodejs_heap_space_size_used_bytes{space="shared"} 0
+rideease_nodejs_heap_space_size_used_bytes{space="trusted"} 2650224
+rideease_nodejs_heap_space_size_used_bytes{space="shared_trusted"} 0
+rideease_nodejs_heap_space_size_used_bytes{space="new_large_object"} 0
+rideease_nodejs_heap_space_size_used_bytes{space="large_object"} 2745200
+rideease_nodejs_heap_space_size_used_bytes{space="code_large_object"} 181664
+rideease_nodejs_heap_space_size_used_bytes{space="shared_large_object"} 0
+rideease_nodejs_heap_space_size_used_bytes{space="shared_trusted_large_object"} 0
+rideease_nodejs_heap_space_size_used_bytes{space="trusted_large_object"} 0
+
+# HELP rideease_nodejs_heap_space_size_available_bytes Process heap space size available from Node.js in bytes.
+# TYPE rideease_nodejs_heap_space_size_available_bytes gauge
+rideease_nodejs_heap_space_size_available_bytes{space="read_only"} 0
+rideease_nodejs_heap_space_size_available_bytes{space="new"} 4743320
+rideease_nodejs_heap_space_size_available_bytes{space="old"} 1895976
+rideease_nodejs_heap_space_size_available_bytes{space="code"} 674752
+rideease_nodejs_heap_space_size_available_bytes{space="shared"} 0
+rideease_nodejs_heap_space_size_available_bytes{space="trusted"} 1363152
+rideease_nodejs_heap_space_size_available_bytes{space="shared_trusted"} 0
+rideease_nodejs_heap_space_size_available_bytes{space="new_large_object"} 8388608
+rideease_nodejs_heap_space_size_available_bytes{space="large_object"} 0
+rideease_nodejs_heap_space_size_available_bytes{space="code_large_object"} 0
+rideease_nodejs_heap_space_size_available_bytes{space="shared_large_object"} 0
+rideease_nodejs_heap_space_size_available_bytes{space="shared_trusted_large_object"} 0
+rideease_nodejs_heap_space_size_available_bytes{space="trusted_large_object"} 0
+
+# HELP rideease_nodejs_version_info Node.js version info.
+# TYPE rideease_nodejs_version_info gauge
+rideease_nodejs_version_info{version="v24.5.0",major="24",minor="5",patch="0"} 1
+
+# HELP rideease_nodejs_gc_duration_seconds Garbage collection duration by kind, one of major, minor, incremental or weakcb.
+# TYPE rideease_nodejs_gc_duration_seconds histogram
+rideease_nodejs_gc_duration_seconds_bucket{le="0.001",kind="minor"} 315
+rideease_nodejs_gc_duration_seconds_bucket{le="0.01",kind="minor"} 347
+rideease_nodejs_gc_duration_seconds_bucket{le="0.1",kind="minor"} 347
+rideease_nodejs_gc_duration_seconds_bucket{le="1",kind="minor"} 347
+rideease_nodejs_gc_duration_seconds_bucket{le="2",kind="minor"} 347
+rideease_nodejs_gc_duration_seconds_bucket{le="5",kind="minor"} 347
+rideease_nodejs_gc_duration_seconds_bucket{le="+Inf",kind="minor"} 347
+rideease_nodejs_gc_duration_seconds_sum{kind="minor"} 0.2399840831756594
+rideease_nodejs_gc_duration_seconds_count{kind="minor"} 347
+rideease_nodejs_gc_duration_seconds_bucket{le="0.001",kind="major"} 0
+rideease_nodejs_gc_duration_seconds_bucket{le="0.01",kind="major"} 5
+rideease_nodejs_gc_duration_seconds_bucket{le="0.1",kind="major"} 5
+rideease_nodejs_gc_duration_seconds_bucket{le="1",kind="major"} 5
+rideease_nodejs_gc_duration_seconds_bucket{le="2",kind="major"} 5
+rideease_nodejs_gc_duration_seconds_bucket{le="5",kind="major"} 5
+rideease_nodejs_gc_duration_seconds_bucket{le="+Inf",kind="major"} 5
+rideease_nodejs_gc_duration_seconds_sum{kind="major"} 0.017756292819976805
+rideease_nodejs_gc_duration_seconds_count{kind="major"} 5
+rideease_nodejs_gc_duration_seconds_bucket{le="0.001",kind="incremental"} 2
+rideease_nodejs_gc_duration_seconds_bucket{le="0.01",kind="incremental"} 4
+rideease_nodejs_gc_duration_seconds_bucket{le="0.1",kind="incremental"} 4
+rideease_nodejs_gc_duration_seconds_bucket{le="1",kind="incremental"} 4
+rideease_nodejs_gc_duration_seconds_bucket{le="2",kind="incremental"} 4
+rideease_nodejs_gc_duration_seconds_bucket{le="5",kind="incremental"} 4
+rideease_nodejs_gc_duration_seconds_bucket{le="+Inf",kind="incremental"} 4
+rideease_nodejs_gc_duration_seconds_sum{kind="incremental"} 0.004700791835784912
+rideease_nodejs_gc_duration_seconds_count{kind="incremental"} 4
+
+# HELP rideease_prediction_latency_ms Latency of /recommendations endpoint in ms
+# TYPE rideease_prediction_latency_ms histogram
+rideease_prediction_latency_ms_bucket{le="5",variant="treatment"} 0
+rideease_prediction_latency_ms_bucket{le="10",variant="treatment"} 0
+rideease_prediction_latency_ms_bucket{le="20",variant="treatment"} 0
+rideease_prediction_latency_ms_bucket{le="50",variant="treatment"} 0
+rideease_prediction_latency_ms_bucket{le="100",variant="treatment"} 0
+rideease_prediction_latency_ms_bucket{le="250",variant="treatment"} 0
+rideease_prediction_latency_ms_bucket{le="500",variant="treatment"} 0
+rideease_prediction_latency_ms_bucket{le="1000",variant="treatment"} 7
+rideease_prediction_latency_ms_bucket{le="+Inf",variant="treatment"} 51
+rideease_prediction_latency_ms_sum{variant="treatment"} 124287.74108799998
+rideease_prediction_latency_ms_count{variant="treatment"} 51
+rideease_prediction_latency_ms_bucket{le="5",variant="control"} 0
+rideease_prediction_latency_ms_bucket{le="10",variant="control"} 0
+rideease_prediction_latency_ms_bucket{le="20",variant="control"} 0
+rideease_prediction_latency_ms_bucket{le="50",variant="control"} 0
+rideease_prediction_latency_ms_bucket{le="100",variant="control"} 0
+rideease_prediction_latency_ms_bucket{le="250",variant="control"} 0
+rideease_prediction_latency_ms_bucket{le="500",variant="control"} 0
+rideease_prediction_latency_ms_bucket{le="1000",variant="control"} 8
+rideease_prediction_latency_ms_bucket{le="+Inf",variant="control"} 54
+rideease_prediction_latency_ms_sum{variant="control"} 120264.32378999998
+rideease_prediction_latency_ms_count{variant="control"} 54
+
+# HELP rideease_prediction_requests_total Total prediction requests
+# TYPE rideease_prediction_requests_total counter
+rideease_prediction_requests_total{variant="treatment",status="success"} 51
+rideease_prediction_requests_total{variant="control",status="success"} 54
+
+# HELP rideease_prediction_errors_total Total errors during predictions
+# TYPE rideease_prediction_errors_total counter
+
+# HELP rideease_service_uptime_seconds Uptime of the inference service
+# TYPE rideease_service_uptime_seconds gauge
+rideease_service_uptime_seconds 18970.527701834

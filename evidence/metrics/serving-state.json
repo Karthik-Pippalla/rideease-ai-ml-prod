@@ -1,0 +1,10 @@
+{
+  "_id": "model-serving-state",
+  "__v": 0,
+  "defaultVersion": "v1.0.0",
+  "updatedAt": "2025-11-20T02:44:08.922Z",
+  "variants": {
+    "control": "v1.0.0",
+    "treatment": "v1.1.0"
+  }
+}

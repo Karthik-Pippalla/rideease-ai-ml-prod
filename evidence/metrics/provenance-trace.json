@@ -1,0 +1,17 @@
+{
+  "_id": "691e807d363e9ebd8caca77b",
+  "requestId": "eb484fc6-4acf-4427-95e2-0c550e6addc8",
+  "__v": 0,
+  "containerImageDigest": "dev-local",
+  "createdAt": "2025-11-20T02:44:13.402Z",
+  "dataSnapshotId": "20251119-214332",
+  "latencyMs": 635.91325,
+  "metadata": {
+    "limit": 5
+  },
+  "modelVersion": "v1.0.0",
+  "pipelineGitSha": "5666b76",
+  "recommendations": [],
+  "userId": "user789",
+  "variant": "control"
+}

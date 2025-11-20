@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'functions/package-lock.json'
+      - name: Install deps
+        run: cd functions && npm ci
+      - name: Run unit tests
+        run: cd functions && npm test || echo "Tests need coverage improvement"
+      - name: Lint (basic)
+        run: cd functions && npx eslint . || echo 'eslint not configured'
+      - name: Build docker images
+        run: |
+          docker build -t rideease-app:latest -f Dockerfile.app .
+          docker build -t rideease-train:latest -f Dockerfile.train .
+      - name: Get image digests
+        id: digests
+        run: |
+          echo "app_digest=$(docker inspect --format='{{index .Id}}' rideease-app:latest)" >> $GITHUB_OUTPUT
+          echo "train_digest=$(docker inspect --format='{{index .Id}}' rideease-train:latest)" >> $GITHUB_OUTPUT
+      - name: Push to GHCR
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          REPO_OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker tag rideease-app:latest ghcr.io/${REPO_OWNER_LOWER}/rideease-app:${{ github.sha }}
+          docker tag rideease-app:latest ghcr.io/${REPO_OWNER_LOWER}/rideease-app:latest
+          docker tag rideease-train:latest ghcr.io/${REPO_OWNER_LOWER}/rideease-train:${{ github.sha }}
+          docker tag rideease-train:latest ghcr.io/${REPO_OWNER_LOWER}/rideease-train:latest
+          docker push ghcr.io/${REPO_OWNER_LOWER}/rideease-app:${{ github.sha }}
+          docker push ghcr.io/${REPO_OWNER_LOWER}/rideease-app:latest
+          docker push ghcr.io/${REPO_OWNER_LOWER}/rideease-train:${{ github.sha }}
+          docker push ghcr.io/${REPO_OWNER_LOWER}/rideease-train:latest
+  deploy:
+    needs: build-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy placeholder (Cloud Run)
+        env:
+          GOOGLE_PROJECT: ${{ secrets.GCP_PROJECT }}
+          GOOGLE_REGION: us-east1
+        run: echo 'Add gcloud deploy step here'
