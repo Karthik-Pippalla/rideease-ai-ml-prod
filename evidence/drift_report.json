@@ -1,0 +1,20 @@
+{
+    "type": "drift_report",
+    "timestamp": "2025-11-28T18:28:27.237Z",
+    "drift": {
+      "userDist": {
+        "kl": 0,
+        "statsCur": { "mean": 0.05, "var": 4.8148e-35 },
+        "statsBase": { "mean": 0.05, "var": 4.8148e-35 },
+        "drift": false
+      },
+      "itemDist": {
+        "kl": 0,
+        "statsCur": { "mean": 0.25, "var": 0.00625 },
+        "statsBase": { "mean": 0.25, "var": 0.00625 },
+        "drift": false
+      }
+    },
+    "hasDrift": false
+  }
+  

@@ -13,7 +13,11 @@
     "lint": "eslint .",
     "pipeline:serve": "node pipeline/server.js",
     "pipeline:train": "node pipeline/jobs/trainAndPublish.js",
-    "pipeline:experiments": "node pipeline/jobs/experimentSummary.js"
+    "pipeline:experiments": "node pipeline/jobs/experimentSummary.js",
+    "pipeline:indexes": "node -e \"require('./pipeline/indexes').createIndexes().then(() => process.exit(0))\"",
+    "pipeline:fairness-report": "node pipeline/jobs/fairnessReport.js",
+    "pipeline:feedback-report": "node pipeline/jobs/feedbackLoopReport.js",
+    "pipeline:drift-report": "node pipeline/jobs/driftReport.js"
   },
   "engines": {
     "node": "22"

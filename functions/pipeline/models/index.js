@@ -37,8 +37,17 @@ const ServingStateSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 }, { collection: 'model_serving_state' });
 
+const AdminAuditLogSchema = new mongoose.Schema({
+  action: { type: String, required: true, index: true },
+  userId: String,
+  details: Object,
+  ip: String,
+  timestamp: { type: Date, default: Date.now, index: true },
+}, { collection: 'admin_audit_logs' });
+
 const Model = mongoose.models.Model || mongoose.model('Model', ModelSchema, 'models');
 const PredictionTrace = mongoose.models.PredictionTrace || mongoose.model('PredictionTrace', PredictionTraceSchema);
 const ModelServingState = mongoose.models.ModelServingState || mongoose.model('ModelServingState', ServingStateSchema);
+const AdminAuditLog = mongoose.models.AdminAuditLog || mongoose.model('AdminAuditLog', AdminAuditLogSchema);
 
-module.exports = { Model, PredictionTrace, ModelServingState };
+module.exports = { Model, PredictionTrace, ModelServingState, AdminAuditLog };

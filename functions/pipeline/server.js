@@ -9,6 +9,7 @@ const { recommendTopN } = require('./serve');
 const { assignVariant, summarizeExperiment } = require('./experimentation');
 const { logPredictionTrace, fetchTrace } = require('./provenance');
 const { listModels, setServingVersion, getServingState } = require('./modelRegistry');
+const { RawEvent } = require('./ingest');
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
@@ -45,6 +46,32 @@ const uptimeGauge = new promClient.Gauge({
 });
 
 setInterval(() => uptimeGauge.set(process.uptime()), 5000).unref();
+
+app.get('/', (req, res) => {
+  res.json({
+    service: 'RideEase MLOps Pipeline',
+    version: '1.0.0',
+    endpoints: {
+      health: 'GET /healthz',
+      metrics: 'GET /metrics',
+      recommendations: 'POST /recommendations',
+      experiments: 'GET /experiments/:experimentId/summary',
+      fairness: 'GET /fairness?windowHours=24',
+      feedbackLoops: 'GET /feedback-loops?windowHours=168',
+      telemetry: {
+        conversionFunnel: 'GET /telemetry/conversion-funnel?windowHours=24',
+        itemTrends: 'GET /telemetry/item-trends?windowHours=168',
+        userEngagement: 'GET /telemetry/user-engagement?windowHours=168',
+      },
+      traces: 'GET /traces/:requestId',
+      admin: {
+        models: 'GET /admin/models',
+        switchModel: 'POST /admin/switch-model',
+      },
+    },
+    docs: 'See docs/ folder for detailed API documentation',
+  });
+});
 
 app.get('/healthz', async (req, res) => {
   try {
@@ -122,6 +149,27 @@ app.post('/recommendations', async (req, res) => {
       latencyMs,
       metadata: { limit },
     });
+
+    // Log 'recommend' event for A/B testing
+    try {
+      const itemIds = recommendations.map(r => r.itemId || r.rideId || String(r)).filter(Boolean);
+      await RawEvent.create({
+        type: 'recommend',
+        userId: String(userId),
+        ts: new Date(),
+        payload: {
+          items: itemIds,
+          requestId,
+          variant,
+          modelVersion: model?.metadata?.version,
+          limit,
+        },
+      });
+    } catch (eventErr) {
+      // Log but don't fail the request if event logging fails
+      console.error('Failed to log recommend event:', eventErr.message);
+    }
+
     res.json({
       requestId,
       variant,
@@ -144,6 +192,81 @@ app.get('/experiments/:experimentId/summary', async (req, res) => {
   const windowHours = parseInt(req.query.windowHours || '24', 10);
   const summary = await summarizeExperiment({ windowHours });
   res.json(summary);
+});
+
+app.get('/fairness', async (req, res) => {
+  try {
+    await connect();
+    const windowHours = parseInt(req.query.windowHours || '24', 10);
+    const { evaluateFairness } = require('./fairness');
+    const report = await evaluateFairness({ windowHours });
+    res.json(report);
+  } catch (err) {
+    console.error('Fairness endpoint error:', err);
+    res.status(500).json({ error: 'fairness_evaluation_failed', message: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined });
+  }
+});
+
+app.get('/feedback-loops', async (req, res) => {
+  try {
+    await connect();
+    const windowHours = parseInt(req.query.windowHours || '168', 10);
+    const { detectFeedbackLoops, detectFeedbackAnomalies } = require('./feedbackLoop');
+    const [loops, anomalies] = await Promise.all([
+      detectFeedbackLoops({ windowHours }),
+      detectFeedbackAnomalies({ windowHours }),
+    ]);
+    res.json({ loops, anomalies });
+  } catch (err) {
+    console.error('Feedback loops endpoint error:', err);
+    res.status(500).json({ error: 'feedback_loop_detection_failed', message: err.message, stack: process.env.NODE_ENV === 'development' ? err.stack : undefined });
+  }
+});
+
+// Telemetry endpoints
+app.get('/telemetry/conversion-funnel', async (req, res) => {
+  await connect();
+  const windowHours = parseInt(req.query.windowHours || '24', 10);
+  const variant = req.query.variant || null;
+  const { getConversionFunnel } = require('./telemetry');
+  try {
+    const funnel = await getConversionFunnel({ windowHours, variant });
+    res.json(funnel);
+  } catch (err) {
+    res.status(500).json({ error: 'telemetry_query_failed', message: err.message });
+  }
+});
+
+app.get('/telemetry/item-trends', async (req, res) => {
+  await connect();
+  const windowHours = parseInt(req.query.windowHours || '168', 10);
+  const itemId = req.query.itemId || null;
+  const { getItemPopularityTrend } = require('./telemetry');
+  try {
+    const trends = await getItemPopularityTrend({ windowHours, itemId });
+    res.json(trends);
+  } catch (err) {
+    res.status(500).json({ error: 'telemetry_query_failed', message: err.message });
+  }
+});
+
+app.get('/telemetry/user-engagement', async (req, res) => {
+  await connect();
+  const windowHours = parseInt(req.query.windowHours || '168', 10);
+  const { getUserEngagementPatterns } = require('./telemetry');
+  try {
+    const patterns = await getUserEngagementPatterns({ windowHours });
+    res.json(patterns);
+  } catch (err) {
+    res.status(500).json({ error: 'telemetry_query_failed', message: err.message });
+  }
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled error', err);
+  errorCounter.labels('unhandled').inc();
+  res.status(500).json({ error: 'internal_error', message: err.message });
 });
 
 function start({ port = process.env.PORT || 8080 } = {}) {
